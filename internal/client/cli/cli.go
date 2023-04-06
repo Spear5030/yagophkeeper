@@ -10,8 +10,8 @@ import (
 type usecase interface {
 	ListSecrets() []domain.LoginPassword
 	AddLoginPassword(domain.LoginPassword) error
-	RegisterUser(user domain.User) (string, error)
-	LoginUser(user domain.User) (string, error)
+	RegisterUser(user domain.User) error
+	LoginUser(user domain.User) error
 }
 
 type CLI struct {
@@ -23,13 +23,15 @@ func New(logger *zap.Logger, usecase usecase) *CLI {
 	c := CLI{logger: logger, usecase: usecase}
 	c.AddListSecrets()
 	c.AddLoginPassword()
+	c.RegisterUser()
+	c.LoginUser()
 	return &c
 }
 
 func (cli *CLI) AddListSecrets() {
 	var listCmd = &cobra.Command{
 		Use:   "list",
-		Short: "Print secrets",
+		Short: "Print secrets. ",
 		Long:  `Print all local secrets`,
 		Run: func(cmd *cobra.Command, args []string) {
 			secrets := cli.usecase.ListSecrets()
@@ -63,13 +65,14 @@ func (cli *CLI) AddLoginPassword() {
 }
 
 func (cli *CLI) RegisterUser() {
-	var user = &domain.User{}
+	var user = domain.User{}
 	var regUserCmd = &cobra.Command{
 		Use:   "register",
 		Short: "register account",
 		Long:  `register account`,
 		Run: func(cmd *cobra.Command, args []string) {
-			token, err := cli.usecase.RegisterUser(*user)
+			cli.logger.Debug("RegisterUser")
+			err := cli.usecase.RegisterUser(user)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -80,4 +83,25 @@ func (cli *CLI) RegisterUser() {
 	regUserCmd.Flags().StringVarP(&user.Password, "password", "p", "", "password (required)")
 	regUserCmd.MarkFlagRequired("password")
 	rootCmd.AddCommand(regUserCmd)
+}
+
+func (cli *CLI) LoginUser() {
+	var user = domain.User{}
+	var logUserCmd = &cobra.Command{
+		Use:   "login",
+		Short: "login account",
+		Long:  `login account`,
+		Run: func(cmd *cobra.Command, args []string) {
+			cli.logger.Debug("loginUser")
+			err := cli.usecase.LoginUser(user)
+			if err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+	logUserCmd.Flags().StringVarP(&user.Email, "email", "l", "", "email (required)")
+	logUserCmd.MarkFlagRequired("email")
+	logUserCmd.Flags().StringVarP(&user.Password, "password", "p", "", "password (required)")
+	logUserCmd.MarkFlagRequired("password")
+	rootCmd.AddCommand(logUserCmd)
 }

@@ -1,13 +1,17 @@
 package app
 
 import (
-	"github.com/Spear5030/yagophkeeper/internal/client/config"
+	"github.com/Spear5030/yagophkeeper/internal/server"
+	"github.com/Spear5030/yagophkeeper/internal/server/config"
+	"github.com/Spear5030/yagophkeeper/internal/server/storage"
+	"github.com/Spear5030/yagophkeeper/internal/server/usecase"
 	"github.com/Spear5030/yagophkeeper/pkg/logger"
 	"go.uber.org/zap"
 )
 
 type App struct {
-	logger *zap.Logger
+	GRPCServer *server.YaGophKeeperServer
+	logger     *zap.Logger
 }
 
 func New(cfg config.Config) (*App, error) {
@@ -15,9 +19,13 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{logger: lg}, nil
+	s := storage.New("test.ppb", lg)
+	uc := usecase.New(s, lg)
+	srv := server.New(uc, lg, "12345") //todo cfg
+	return &App{GRPCServer: srv, logger: lg}, nil
 }
 
 func (app *App) Run() error {
-	return nil
+	return app.GRPCServer.Start()
+
 }

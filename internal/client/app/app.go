@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/Spear5030/yagophkeeper/internal/client/cli"
 	"github.com/Spear5030/yagophkeeper/internal/client/config"
+	"github.com/Spear5030/yagophkeeper/internal/client/grpcclient"
 	"github.com/Spear5030/yagophkeeper/internal/client/storage"
 	"github.com/Spear5030/yagophkeeper/internal/client/usecase"
 	"github.com/Spear5030/yagophkeeper/pkg/logger"
@@ -11,7 +12,8 @@ import (
 
 type App struct {
 	logger *zap.Logger
-	client *cli.CLI
+	cli    *cli.CLI
+	grpc   *grpcclient.Client
 }
 
 func New(cfg config.Config) (*App, error) {
@@ -20,17 +22,17 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 	repo, err := storage.New("user.dat", lg)
-	useCase := usecase.New(lg, repo)
-
-	client := cli.New(lg, useCase)
+	grpcl := grpcclient.New("localhost:12345") //todo cfg
+	useCase := usecase.New(repo, grpcl, lg)
+	cliclient := cli.New(lg, useCase)
 
 	return &App{
 			logger: lg,
-			client: client},
+			cli:    cliclient},
 		nil
 }
 
 func (app *App) Run() error {
-	app.client.Execute()
+	app.cli.Execute()
 	return nil
 }

@@ -5,47 +5,58 @@ import (
 	"go.uber.org/zap"
 )
 
-type secreter interface {
-	ListSecrets() []domain.LoginPassword
-	AddLoginPassword(domain.LoginPassword) error
-}
-
-type auth interface {
-	RegisterUser(user domain.User) (string, error)
-	LoginUser(user domain.User) (string, error)
+type network interface {
+	RegisterUser(user domain.User) error
+	LoginUser(user domain.User) error
 }
 
 type storage interface {
-	secreter
-	auth
+	ListSecrets() []domain.LoginPassword
+	AddLoginPassword(domain.LoginPassword) error
+	SaveUserData(user domain.User) error
+	UpdateTime() error
 }
 
 type usecase struct {
-	logger   *zap.Logger
-	secreter secreter
-	auth     auth
+	logger  *zap.Logger
+	storage storage
+	network network
 }
 
-func New(logger *zap.Logger, storage storage) *usecase {
+func New(storage storage, network network, logger *zap.Logger) *usecase {
 	return &usecase{
-		logger:   logger,
-		secreter: storage,
-		auth:     storage,
+		logger:  logger,
+		storage: storage,
+		network: network,
 	}
 }
 
 func (u *usecase) ListSecrets() []domain.LoginPassword {
-	return u.secreter.ListSecrets()
+	return u.storage.ListSecrets()
 }
 
 func (u *usecase) AddLoginPassword(lp domain.LoginPassword) error {
-	return u.secreter.AddLoginPassword(lp)
+	err := u.storage.AddLoginPassword(lp)
+	if err != nil {
+		return err
+	}
+	return u.storage.UpdateTime()
 }
 
-func (u *usecase) RegisterUser(user domain.User) (token string, err error) {
-	return "", nil
+func (u *usecase) RegisterUser(user domain.User) (err error) {
+	err = u.network.RegisterUser(user) //todo return hash?
+	if err != nil {
+		return err
+	}
+	err = u.storage.SaveUserData(user)
+	return err
 }
 
-func (u *usecase) LoginUser(user domain.User) (token string, err error) {
-	return "", nil
+func (u *usecase) LoginUser(user domain.User) (err error) {
+	err = u.network.LoginUser(user)
+	if err != nil {
+		return err
+	}
+	err = u.storage.SaveUserData(user)
+	return err
 }

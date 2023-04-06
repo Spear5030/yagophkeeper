@@ -3,12 +3,16 @@ package storage
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"io"
 	"os"
+	"time"
 )
 
 const (
@@ -18,57 +22,129 @@ const (
 	TypeCard          byte = 0x4
 )
 
+const (
+	VersionFile byte = 0x1
+	CryptoAlg   byte = 0x1 //tmp
+)
+
 type Storage struct {
-	filename string
-	logger   *zap.Logger
-	lps      []domain.LoginPassword
+	filename  string
+	logger    *zap.Logger
+	lps       []domain.LoginPassword
+	updatedAt time.Time
 }
 
 func New(filename string, logger *zap.Logger) (*Storage, error) {
 	var storage Storage
-
-	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_APPEND|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	rd := bufio.NewReader(file)
-	var buffer bytes.Buffer
-	for {
-		b, err := rd.ReadBytes(30) // record separator
+	fstat, err := os.Stat(filename)
+	if (errors.Is(err, os.ErrNotExist)) || (fstat.Size() == 0) {
+		err = NewFileHeaders(filename)
 		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				fmt.Println(err)
-				break
-			}
+			logger.Error("new file error", zap.Error(err))
 		}
-		var secretType byte
-		if len(b) > 1 {
-			secretType = b[0]
-			b = b[1:]
+	} else {
+		file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+		if err != nil {
+			return nil, err
 		}
-		switch secretType {
-		case TypeLoginPassword:
-			lp := &domain.LoginPassword{}
-			buffer.Write(b)
-			err := gob.NewDecoder(&buffer).Decode(lp)
+		defer file.Close()
+		rd := bufio.NewReader(file)
+		var buffer bytes.Buffer
+		_, err = rd.Discard(1 + 1 + 8 + 254 + 60) //file "headers" version+cryptoalg+timestamp+email+hashedpass
+		if err != nil {
+			logger.Error("read file error", zap.Error(err))
+		}
+		for {
+			b, err := rd.ReadBytes(30) // record separator
 			if err != nil {
-				fmt.Println(err)
+				if err == io.EOF {
+					break
+				} else {
+					fmt.Println(err)
+					break
+				}
 			}
-			buffer.Reset()
-			storage.lps = append(storage.lps, *lp)
-		case TypeText:
-		case TypeBinary:
-		case TypeCard:
-		default:
-			continue
+			var secretType byte
+			if len(b) > 1 {
+				secretType = b[0]
+				b = b[1:]
+			}
+			switch secretType {
+			case TypeLoginPassword:
+				lp := &domain.LoginPassword{}
+				buffer.Write(b)
+				err := gob.NewDecoder(&buffer).Decode(lp)
+				if err != nil {
+					fmt.Println(err)
+				}
+				buffer.Reset()
+				storage.lps = append(storage.lps, *lp)
+			case TypeText:
+			case TypeBinary:
+			case TypeCard:
+			default:
+				continue
+			}
 		}
 	}
 	storage.filename = filename
 	storage.logger = logger
+	storage.updatedAt = time.Now()
 	return &storage, nil
+}
+
+func NewFileHeaders(path string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	var headers []byte
+	sliceheaders := make([]byte, 8+254+60) //timestamp + email +hashedpassword
+	headers = append([]byte{VersionFile, CryptoAlg}, sliceheaders...)
+	file.Write(headers)
+	return file.Sync()
+}
+
+func (s Storage) SaveUserData(user domain.User) error {
+	file, err := os.OpenFile(s.filename, os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.Seek(10, 0)
+	if err != nil {
+		return err
+	}
+	emailBytes := make([]byte, 254) // max length email
+	copy(emailBytes, user.Email)
+	file.Write(emailBytes) //maybe store hashed email?
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	file.Write(hashedPassword) // 60 length
+	if err != nil {
+		return err
+	}
+	return file.Sync()
+}
+
+func (s Storage) UpdateTime() error {
+	file, err := os.OpenFile(s.filename, os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.Seek(2, 0)
+	if err != nil {
+		return err
+	}
+	btimestamp := make([]byte, 8)
+	binary.BigEndian.PutUint64(btimestamp, uint64(time.Now().Unix()))
+	_, err = file.Write(btimestamp)
+	if err != nil {
+		return err
+	}
+	s.updatedAt = time.Now()
+	return file.Sync()
 }
 
 func (s Storage) AddLoginPassword(lp domain.LoginPassword) error {
@@ -93,13 +169,8 @@ func (s Storage) AddLoginPassword(lp domain.LoginPassword) error {
 }
 
 func (s Storage) ListSecrets() []domain.LoginPassword {
+	if len(s.lps) == 0 {
+		return nil
+	}
 	return s.lps
-}
-
-func (s Storage) RegisterUser(user domain.User) (string, error) {
-	return "", nil
-}
-
-func (s Storage) LoginUser(user domain.User) (string, error) {
-	return "", nil
 }
