@@ -10,6 +10,8 @@ import (
 type storage interface {
 	RegisterUser(email string, hashedPassword []byte) (err error)
 	GetUserHashedPassword(email string) (hashedPassword []byte, err error)
+	GetLastSyncTime(email string) (lastSync time.Time, err error)
+	SetLastSyncTime(email string, lastSync time.Time) (err error)
 }
 
 type usecase struct {
@@ -46,6 +48,14 @@ func (uc *usecase) LoginUser(email string, password string) (token string, err e
 		return "", err
 	}
 	return token, err
+}
+
+func (uc *usecase) GetLastSyncTime() {
+
+}
+
+func (uc *usecase) SetLastSyncTime() {
+
 }
 
 func genJWT(secretKey string) (string, error) {

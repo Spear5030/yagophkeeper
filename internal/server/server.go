@@ -19,7 +19,7 @@ import (
 type YaGophKeeperServer struct {
 	pb.UnimplementedYaGophKeeperServer
 	usecase   usecase
-	Server    *grpc.Server
+	server    *grpc.Server
 	logger    *zap.Logger
 	port      string
 	secretKey string
@@ -36,9 +36,9 @@ func New(usecase usecase, logger *zap.Logger, port string) *YaGophKeeperServer {
 		logger:  logger,
 		port:    port,
 	}
-	s.Server = grpc.NewServer(grpc.UnaryInterceptor(s.AuthInterceptor))
-	reflection.Register(s.Server) // for postman
-	pb.RegisterYaGophKeeperServer(s.Server, s)
+	s.server = grpc.NewServer(grpc.UnaryInterceptor(s.AuthInterceptor))
+	reflection.Register(s.server) // for postman
+	pb.RegisterYaGophKeeperServer(s.server, s)
 	return s
 }
 
@@ -48,7 +48,7 @@ func (s *YaGophKeeperServer) Start() error {
 	if err != nil {
 		log.Fatal("error with listen gRPC:", err)
 	}
-	return s.Server.Serve(l)
+	return s.server.Serve(l)
 }
 
 func (s *YaGophKeeperServer) RegisterUser(ctx context.Context, user *pb.User) (*pb.AuthResponse, error) {

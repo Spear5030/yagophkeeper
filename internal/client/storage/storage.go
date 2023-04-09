@@ -28,10 +28,11 @@ const (
 )
 
 type Storage struct {
-	filename  string
-	logger    *zap.Logger
-	lps       []domain.LoginPassword
-	updatedAt time.Time
+	filename   string
+	logger     *zap.Logger
+	lps        []domain.LoginPassword
+	updatedAt  time.Time
+	hashedPass []byte
 }
 
 func New(filename string, logger *zap.Logger) (*Storage, error) {
@@ -50,10 +51,19 @@ func New(filename string, logger *zap.Logger) (*Storage, error) {
 		defer file.Close()
 		rd := bufio.NewReader(file)
 		var buffer bytes.Buffer
-		_, err = rd.Discard(1 + 1 + 8 + 254 + 60) //file "headers" version+cryptoalg+timestamp+email+hashedpass
+
+		headers := make([]byte, 1+1+8+254+60) //file "headers" version+cryptoalg+timestamp+email+hashedpass
+		_, err = rd.Read(headers)
 		if err != nil {
 			logger.Error("read file error", zap.Error(err))
 		}
+
+		err = storage.readHeaders(headers)
+		if err != nil {
+			return nil, err
+		}
+		//_, err = rd.Discard(1 + 1 + 8 + 254 + 60)
+
 		for {
 			b, err := rd.ReadBytes(30) // record separator
 			if err != nil {
@@ -102,8 +112,24 @@ func NewFileHeaders(path string) error {
 	var headers []byte
 	sliceheaders := make([]byte, 8+254+60) //timestamp + email +hashedpassword
 	headers = append([]byte{VersionFile, CryptoAlg}, sliceheaders...)
-	file.Write(headers)
+	_, err = file.Write(headers)
+	if err != nil {
+		return err
+	}
 	return file.Sync()
+}
+
+func (s Storage) readHeaders(headers []byte) error {
+	if len(headers) != 1+1+8+254+60 {
+		return errors.New("invalid file header")
+	}
+	//version := headers[0]
+	//cryptoalg := headers[1]
+	s.updatedAt = time.Unix(int64(binary.BigEndian.Uint64(headers[2:10])), 0)
+	//email := strings.TrimSpace(string(headers[10:264]) //wrong trim
+	s.hashedPass = headers[264:]
+	//fmt.Println(bcrypt.CompareHashAndPassword(hashedPass, []byte("123456")))
+	return nil
 }
 
 func (s Storage) SaveUserData(user domain.User) error {

@@ -50,3 +50,14 @@ func (c *Client) LoginUser(user domain.User) error {
 	c.token = resp.Token
 	return nil
 }
+
+func (c *Client) CheckSync(email string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	resp, err := c.yagkclient.CheckSync(ctx, &pb.CheckSyncRequest{Email: email})
+	resp.GetLastSync()
+	if err != nil {
+		return err
+	}
+	return nil
+}

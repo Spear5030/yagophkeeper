@@ -8,6 +8,7 @@ import (
 type network interface {
 	RegisterUser(user domain.User) error
 	LoginUser(user domain.User) error
+	CheckSync(email string) error
 }
 
 type storage interface {
@@ -48,6 +49,7 @@ func (u *usecase) RegisterUser(user domain.User) (err error) {
 	if err != nil {
 		return err
 	}
+	err = u.network.CheckSync(user.Email)
 	err = u.storage.SaveUserData(user)
 	return err
 }
@@ -57,6 +59,7 @@ func (u *usecase) LoginUser(user domain.User) (err error) {
 	if err != nil {
 		return err
 	}
+	err = u.network.CheckSync(user.Email)
 	err = u.storage.SaveUserData(user)
 	return err
 }

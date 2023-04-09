@@ -23,6 +23,9 @@ const (
 	YaGophKeeper_RegisterUser_FullMethodName = "/yagophkeeper.YaGophKeeper/RegisterUser"
 	YaGophKeeper_LoginUser_FullMethodName    = "/yagophkeeper.YaGophKeeper/LoginUser"
 	YaGophKeeper_Ping_FullMethodName         = "/yagophkeeper.YaGophKeeper/Ping"
+	YaGophKeeper_CheckSync_FullMethodName    = "/yagophkeeper.YaGophKeeper/CheckSync"
+	YaGophKeeper_SetData_FullMethodName      = "/yagophkeeper.YaGophKeeper/SetData"
+	YaGophKeeper_GetData_FullMethodName      = "/yagophkeeper.YaGophKeeper/GetData"
 )
 
 // YaGophKeeperClient is the client API for YaGophKeeper service.
@@ -32,6 +35,9 @@ type YaGophKeeperClient interface {
 	RegisterUser(ctx context.Context, in *User, opts ...grpc.CallOption) (*AuthResponse, error)
 	LoginUser(ctx context.Context, in *User, opts ...grpc.CallOption) (*AuthResponse, error)
 	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CheckSync(ctx context.Context, in *CheckSyncRequest, opts ...grpc.CallOption) (*SyncResponse, error)
+	SetData(ctx context.Context, in *Secrets, opts ...grpc.CallOption) (*SyncResponse, error)
+	GetData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Secrets, error)
 }
 
 type yaGophKeeperClient struct {
@@ -69,6 +75,33 @@ func (c *yaGophKeeperClient) Ping(ctx context.Context, in *emptypb.Empty, opts .
 	return out, nil
 }
 
+func (c *yaGophKeeperClient) CheckSync(ctx context.Context, in *CheckSyncRequest, opts ...grpc.CallOption) (*SyncResponse, error) {
+	out := new(SyncResponse)
+	err := c.cc.Invoke(ctx, YaGophKeeper_CheckSync_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *yaGophKeeperClient) SetData(ctx context.Context, in *Secrets, opts ...grpc.CallOption) (*SyncResponse, error) {
+	out := new(SyncResponse)
+	err := c.cc.Invoke(ctx, YaGophKeeper_SetData_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *yaGophKeeperClient) GetData(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Secrets, error) {
+	out := new(Secrets)
+	err := c.cc.Invoke(ctx, YaGophKeeper_GetData_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // YaGophKeeperServer is the server API for YaGophKeeper service.
 // All implementations must embed UnimplementedYaGophKeeperServer
 // for forward compatibility
@@ -76,6 +109,9 @@ type YaGophKeeperServer interface {
 	RegisterUser(context.Context, *User) (*AuthResponse, error)
 	LoginUser(context.Context, *User) (*AuthResponse, error)
 	Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	CheckSync(context.Context, *CheckSyncRequest) (*SyncResponse, error)
+	SetData(context.Context, *Secrets) (*SyncResponse, error)
+	GetData(context.Context, *emptypb.Empty) (*Secrets, error)
 	mustEmbedUnimplementedYaGophKeeperServer()
 }
 
@@ -91,6 +127,15 @@ func (UnimplementedYaGophKeeperServer) LoginUser(context.Context, *User) (*AuthR
 }
 func (UnimplementedYaGophKeeperServer) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
+}
+func (UnimplementedYaGophKeeperServer) CheckSync(context.Context, *CheckSyncRequest) (*SyncResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckSync not implemented")
+}
+func (UnimplementedYaGophKeeperServer) SetData(context.Context, *Secrets) (*SyncResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetData not implemented")
+}
+func (UnimplementedYaGophKeeperServer) GetData(context.Context, *emptypb.Empty) (*Secrets, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetData not implemented")
 }
 func (UnimplementedYaGophKeeperServer) mustEmbedUnimplementedYaGophKeeperServer() {}
 
@@ -159,6 +204,60 @@ func _YaGophKeeper_Ping_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _YaGophKeeper_CheckSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckSyncRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(YaGophKeeperServer).CheckSync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: YaGophKeeper_CheckSync_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(YaGophKeeperServer).CheckSync(ctx, req.(*CheckSyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _YaGophKeeper_SetData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Secrets)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(YaGophKeeperServer).SetData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: YaGophKeeper_SetData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(YaGophKeeperServer).SetData(ctx, req.(*Secrets))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _YaGophKeeper_GetData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(YaGophKeeperServer).GetData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: YaGophKeeper_GetData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(YaGophKeeperServer).GetData(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // YaGophKeeper_ServiceDesc is the grpc.ServiceDesc for YaGophKeeper service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -177,6 +276,18 @@ var YaGophKeeper_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Ping",
 			Handler:    _YaGophKeeper_Ping_Handler,
+		},
+		{
+			MethodName: "CheckSync",
+			Handler:    _YaGophKeeper_CheckSync_Handler,
+		},
+		{
+			MethodName: "SetData",
+			Handler:    _YaGophKeeper_SetData_Handler,
+		},
+		{
+			MethodName: "GetData",
+			Handler:    _YaGophKeeper_GetData_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
