@@ -34,6 +34,9 @@ func New(path string, lg *zap.Logger) *storage {
 		}
 		return nil
 	})
+	if err != nil {
+		lg.Fatal("errCreate buckets", zap.Error(err))
+	}
 	return &storage{
 		db:     db,
 		logger: lg,
@@ -98,10 +101,34 @@ func (pp *storage) SetLastSyncTime(email string, lastSync time.Time) (err error)
 		binary.BigEndian.PutUint64(bytesLastSync, uint64(lastSync.Unix()))
 		err = b.Put([]byte(email), bytesLastSync)
 		pp.logger.Debug("err", zap.Error(err))
-
-		return nil
+		return err
 	},
 	)
-	//time.Unix(s)
 	return err
+}
+
+func (pp *storage) SetData(email string, data []byte) (err error) {
+	err = pp.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("data"))
+		err = b.Put([]byte(email), data)
+		if err != nil {
+			pp.logger.Debug("err", zap.Error(err))
+		}
+		return err
+	},
+	)
+	return
+}
+
+func (pp *storage) GetData(email string) (data []byte, err error) {
+	err = pp.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("data"))
+		data = b.Get([]byte(email))
+		if len(data) == 0 {
+			return errors.New("no data")
+		}
+		return err
+	},
+	)
+	return
 }

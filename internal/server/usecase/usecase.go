@@ -12,6 +12,8 @@ type storage interface {
 	GetUserHashedPassword(email string) (hashedPassword []byte, err error)
 	GetLastSyncTime(email string) (lastSync time.Time, err error)
 	SetLastSyncTime(email string, lastSync time.Time) (err error)
+	SetData(email string, data []byte) (err error)
+	GetData(email string) (data []byte, err error)
 }
 
 type usecase struct {
@@ -28,7 +30,15 @@ func New(s storage, lg *zap.Logger) *usecase {
 
 func (uc *usecase) RegisterUser(email string, password string) (token string, err error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		uc.logger.Debug("genToken error", zap.Error(err))
+		return "", err
+	}
 	err = uc.storage.RegisterUser(email, hashedPassword)
+	if err != nil {
+		uc.logger.Debug("Register error", zap.Error(err))
+		return "", err
+	}
 	token, err = genJWT("secret") //todo cfg
 	if err != nil {
 		uc.logger.Debug("genToken error", zap.Error(err))
@@ -43,6 +53,9 @@ func (uc *usecase) LoginUser(email string, password string) (token string, err e
 		return "", err
 	}
 	err = bcrypt.CompareHashAndPassword(hash, []byte(password))
+	if err != nil {
+		return "", err
+	}
 	token, err = genJWT("secret") //todo cfg
 	if err != nil {
 		return "", err
@@ -50,12 +63,25 @@ func (uc *usecase) LoginUser(email string, password string) (token string, err e
 	return token, err
 }
 
-func (uc *usecase) GetLastSyncTime() {
-
+func (uc *usecase) GetLastSyncTime(email string) (lastSync time.Time, err error) {
+	return uc.storage.GetLastSyncTime(email)
 }
 
-func (uc *usecase) SetLastSyncTime() {
+func (uc *usecase) SetData(email string, data []byte) (err error) {
+	err = uc.storage.SetData(email, data)
+	if err != nil {
+		return err
+	}
+	err = uc.storage.SetLastSyncTime(email, time.Now())
+	return
+}
 
+func (uc *usecase) GetData(email string) (data []byte, err error) {
+	data, err = uc.storage.GetData(email)
+	if err != nil {
+		return nil, err
+	}
+	return
 }
 
 func genJWT(secretKey string) (string, error) {
