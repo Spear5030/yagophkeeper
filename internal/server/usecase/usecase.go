@@ -39,7 +39,16 @@ func (uc *usecase) RegisterUser(email string, password string) (token string, er
 		uc.logger.Debug("Register error", zap.Error(err))
 		return "", err
 	}
-	token, err = genJWT("secret") //todo cfg
+	err = uc.storage.SetLastSyncTime(email, time.Now())
+	if err != nil {
+		uc.logger.Debug("Set Last Sync error", zap.Error(err))
+		return "", err
+	}
+	if err != nil {
+		uc.logger.Debug("Register error", zap.Error(err))
+		return "", err
+	}
+	token, err = genJWT("secret", email) //todo cfg
 	if err != nil {
 		uc.logger.Debug("genToken error", zap.Error(err))
 		return "", err
@@ -56,7 +65,7 @@ func (uc *usecase) LoginUser(email string, password string) (token string, err e
 	if err != nil {
 		return "", err
 	}
-	token, err = genJWT("secret") //todo cfg
+	token, err = genJWT("secret", email) //todo cfg
 	if err != nil {
 		return "", err
 	}
@@ -84,9 +93,10 @@ func (uc *usecase) GetData(email string) (data []byte, err error) {
 	return
 }
 
-func genJWT(secretKey string) (string, error) {
+func genJWT(secretKey string, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
+		"email": email,
+		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 	tokenString, err := token.SignedString([]byte(secretKey))
 	return tokenString, err

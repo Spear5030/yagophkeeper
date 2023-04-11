@@ -2,10 +2,9 @@ package server
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
+	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/pb"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,7 +24,7 @@ type YaGophKeeperServer struct {
 	server    *grpc.Server
 	logger    *zap.Logger
 	port      string
-	secretKey string
+	secretKey []byte
 }
 
 type usecase interface {
@@ -45,6 +44,7 @@ func New(usecase usecase, logger *zap.Logger, port string) *YaGophKeeperServer {
 	s.server = grpc.NewServer(grpc.UnaryInterceptor(s.AuthInterceptor))
 	reflection.Register(s.server) // for postman
 	pb.RegisterYaGophKeeperServer(s.server, s)
+	s.secretKey = []byte("secret") //todo config
 	return s
 }
 
@@ -70,7 +70,10 @@ func (s *YaGophKeeperServer) RegisterUser(ctx context.Context, user *pb.User) (*
 
 func (s *YaGophKeeperServer) CheckSync(ctx context.Context, req *pb.CheckSyncRequest) (*pb.SyncResponse, error) {
 	var resp = &pb.SyncResponse{}
-	lastSync, err := s.usecase.GetLastSyncTime(req.Email)
+	fmt.Println(req)
+	email := getEmailFromContext(ctx)
+	s.logger.Debug(email)
+	lastSync, err := s.usecase.GetLastSyncTime(email)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -115,31 +118,37 @@ func (s *YaGophKeeperServer) AuthInterceptor(ctx context.Context, req interface{
 	case "/yagophkeeper.YaGophKeeper/LoginUser":
 		return handler(ctx, req)
 	}
-	var id, token []byte
+	var token *jwt.Token
+	var err error
+	s.logger.Debug("auth interceptor")
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		values := md.Get("token")
+		values := md.Get("Bearer")
 		if len(values) > 0 {
-			token, _ = hex.DecodeString(values[0])
+			s.logger.Debug(values[0])
+			token, err = jwt.Parse(values[0], func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+				}
+				return s.secretKey, nil
+			})
+			if err != nil {
+				s.logger.Debug(err.Error())
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		values = md.Get("id")
-		if len(values) > 0 {
-			id = []byte(values[0])
-		}
 	}
-	if len(token) == 0 || len(id) == 0 {
-		return nil, status.Error(codes.Unauthenticated, "missing token")
+	if claims, ok := token.Claims.(jwt.MapClaims); token.Valid && ok {
+		email := claims["email"].(string)
+		s.logger.Debug("user email from jwt", zap.String("email", email))
+		ctx = metadata.AppendToOutgoingContext(ctx, "email", email) //todo check merged keys
+		return handler(ctx, req)
+	} else {
+		return nil, status.Error(codes.Unauthenticated, "wrong token") //todo check exp
 	}
-	h := hmac.New(sha256.New, []byte(s.secretKey))
-	h.Write(id)
-
-	if !hmac.Equal(h.Sum(nil), token) {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
-	}
-	return handler(ctx, req)
 }
 
 func getEmailFromContext(ctx context.Context) (email string) {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
+	if md, ok := metadata.FromOutgoingContext(ctx); ok {
 		values := md.Get("email")
 		if len(values) > 0 {
 			email = values[0]

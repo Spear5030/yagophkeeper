@@ -5,6 +5,7 @@ import (
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"time"
 )
 
 type usecase interface {
@@ -12,6 +13,8 @@ type usecase interface {
 	AddLoginPassword(domain.LoginPassword) error
 	RegisterUser(user domain.User) error
 	LoginUser(user domain.User) error
+	CheckSync() (time.Time, error)
+	SyncData() error
 }
 
 type CLI struct {
@@ -21,14 +24,16 @@ type CLI struct {
 
 func New(logger *zap.Logger, usecase usecase) *CLI {
 	c := CLI{logger: logger, usecase: usecase}
-	c.AddListSecrets()
+	c.ListSecrets()
 	c.AddLoginPassword()
 	c.RegisterUser()
 	c.LoginUser()
+	c.CheckSync()
+	c.Sync()
 	return &c
 }
 
-func (cli *CLI) AddListSecrets() {
+func (cli *CLI) ListSecrets() {
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "Print secrets. ",
@@ -85,6 +90,38 @@ func (cli *CLI) RegisterUser() {
 	rootCmd.AddCommand(regUserCmd)
 }
 
+func (cli *CLI) Sync() {
+	var syncCmd = &cobra.Command{
+		Use:   "sync",
+		Short: "sync secrets",
+		Long:  `sync secrets with server`,
+		Run: func(cmd *cobra.Command, args []string) {
+			err := cli.usecase.SyncData()
+			if err != nil {
+				fmt.Println(err)
+			}
+			fmt.Println("All secrets synced") //todo return last sync time
+		},
+	}
+	rootCmd.AddCommand(syncCmd)
+}
+
+func (cli *CLI) CheckSync() {
+	var checkSyncCmd = &cobra.Command{
+		Use:   "checksync",
+		Short: "get last sync time from server",
+		Long:  `get last sync time from server`,
+		Run: func(cmd *cobra.Command, args []string) {
+			t, err := cli.usecase.CheckSync()
+			if err != nil {
+				fmt.Println(err)
+			}
+			fmt.Println("Secrets on server last sync time:", t)
+		},
+	}
+	rootCmd.AddCommand(checkSyncCmd)
+}
+
 func (cli *CLI) LoginUser() {
 	var user = domain.User{}
 	var logUserCmd = &cobra.Command{
@@ -92,7 +129,6 @@ func (cli *CLI) LoginUser() {
 		Short: "login account",
 		Long:  `login account`,
 		Run: func(cmd *cobra.Command, args []string) {
-			cli.logger.Debug("loginUser")
 			err := cli.usecase.LoginUser(user)
 			if err != nil {
 				fmt.Println(err)

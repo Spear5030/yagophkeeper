@@ -22,7 +22,7 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 	repo, err := storage.New("user.dat", lg)
-	grpcl := grpcclient.New("localhost:12345") //todo cfg
+	grpcl := grpcclient.New("localhost:12345", repo.Token) //todo cfg
 	useCase := usecase.New(repo, grpcl, lg)
 	cliclient := cli.New(lg, useCase)
 

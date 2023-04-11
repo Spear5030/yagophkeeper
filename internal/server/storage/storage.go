@@ -63,6 +63,12 @@ func (pp *storage) RegisterUser(email string, hashedPassword []byte) (err error)
 		pp.logger.Debug("err", zap.Error(err))
 		return err
 	})
+	err = pp.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("users"))
+		err = b.Put([]byte(email), hashedPassword)
+		pp.logger.Debug("err", zap.Error(err))
+		return err
+	})
 	return err
 }
 
@@ -100,7 +106,9 @@ func (pp *storage) SetLastSyncTime(email string, lastSync time.Time) (err error)
 		bytesLastSync := make([]byte, 8)
 		binary.BigEndian.PutUint64(bytesLastSync, uint64(lastSync.Unix()))
 		err = b.Put([]byte(email), bytesLastSync)
-		pp.logger.Debug("err", zap.Error(err))
+		if err != nil {
+			pp.logger.Debug("err", zap.Error(err))
+		}
 		return err
 	},
 	)
