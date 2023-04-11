@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+package yagophkeeper;
+
+option go_package = "/internal/pb";
+
+message User {
+  string email=1;
+  string password=2;
+}
+
+message AuthResponse {
+  string token=1;
+}
+
+
+// пока грязный вариант - синхронизация полной базы одной структурой
+message Secrets {
+  bytes data=1;
+  google.protobuf.Timestamp last_sync = 2;
+}
+
+message CheckSyncRequest {
+  string email=1;
+}
+
+message SyncResponse {
+  google.protobuf.Timestamp last_sync = 1;
+}
+
+service YaGophKeeper {
+  rpc RegisterUser(User) returns (AuthResponse);
+  rpc LoginUser(User) returns (AuthResponse);
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc CheckSync(CheckSyncRequest) returns (SyncResponse);
+  rpc SetData(Secrets) returns(SyncResponse);
+  rpc GetData(google.protobuf.Empty) returns(Secrets);
+}
