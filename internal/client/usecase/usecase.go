@@ -32,7 +32,6 @@ type usecase struct {
 	email          string
 	serverSyncTime time.Time
 	localSyncTime  time.Time
-	token          string
 }
 
 func New(storage storage, network network, logger *zap.Logger) *usecase {

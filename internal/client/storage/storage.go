@@ -21,7 +21,7 @@ const (
 	TypeCard          byte = 0x4
 )
 
-type Storage struct {
+type storage struct {
 	filename string
 	logger   *zap.Logger
 	lps      []domain.LoginPassword
@@ -37,8 +37,8 @@ type fileHeaders struct {
 	Token      string
 }
 
-func New(filename string, logger *zap.Logger) (*Storage, error) {
-	var storage Storage
+func New(filename string, logger *zap.Logger) (*storage, error) {
+	var storage storage
 	fstat, err := os.Stat(filename)
 	storage.filename = filename
 	if (errors.Is(err, os.ErrNotExist)) || (fstat.Size() == 0) {
@@ -96,7 +96,7 @@ func New(filename string, logger *zap.Logger) (*Storage, error) {
 	return &storage, nil
 }
 
-func (s *Storage) writeHeaders() error {
+func (s *storage) writeHeaders() error {
 
 	file, err := os.OpenFile(s.filename, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
@@ -118,7 +118,7 @@ func (s *Storage) writeHeaders() error {
 	return file.Sync()
 }
 
-func (s *Storage) readHeaders() error {
+func (s *storage) readHeaders() error {
 	file, err := os.OpenFile(s.filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -127,15 +127,18 @@ func (s *Storage) readHeaders() error {
 	var buffer bytes.Buffer
 	rd := bufio.NewReader(file)
 	b, err := rd.ReadBytes(30)
+	if err != nil {
+		s.logger.Debug("error readHeaders:" + err.Error())
+	}
 	buffer.Write(b)
 	if err = gob.NewDecoder(&buffer).Decode(&s.fileHeaders); err != nil {
-		fmt.Println(err)
+		s.logger.Debug(err.Error())
 		return err
 	}
 	return nil
 }
 
-func (s *Storage) SaveUserData(user domain.User, token string) error {
+func (s *storage) SaveUserData(user domain.User, token string) error {
 	var err error
 	s.Email = user.Email
 	s.Token = token
@@ -150,7 +153,7 @@ func (s *Storage) SaveUserData(user domain.User, token string) error {
 	return nil
 }
 
-func (s *Storage) UpdateTime() error {
+func (s *storage) UpdateTime() error {
 	s.UpdatedAt = time.Now()
 	err := s.writeHeaders()
 	if err != nil {
@@ -159,7 +162,7 @@ func (s *Storage) UpdateTime() error {
 	return nil
 }
 
-func (s *Storage) AddLoginPassword(lp domain.LoginPassword) error {
+func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
 	s.lps = append(s.lps, lp)
 	file, err := os.OpenFile(s.filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
@@ -183,14 +186,14 @@ func (s *Storage) AddLoginPassword(lp domain.LoginPassword) error {
 	return file.Sync()
 }
 
-func (s *Storage) ListSecrets() []domain.LoginPassword {
+func (s *storage) ListSecrets() []domain.LoginPassword {
 	if len(s.lps) == 0 {
 		return nil
 	}
 	return s.lps
 }
 
-func (s *Storage) GetData() ([]byte, error) {
+func (s *storage) GetData() ([]byte, error) {
 	b, err := os.ReadFile(s.filename)
 	if err != nil {
 		return nil, err
@@ -198,7 +201,7 @@ func (s *Storage) GetData() ([]byte, error) {
 	return b, nil
 }
 
-func (s *Storage) SetData(data []byte) error {
+func (s *storage) SetData(data []byte) error {
 	err := os.WriteFile(s.filename, data, 0644)
 	if err != nil {
 		return err
@@ -206,10 +209,10 @@ func (s *Storage) SetData(data []byte) error {
 	return nil
 }
 
-func (s *Storage) GetToken() string {
+func (s *storage) GetToken() string {
 	return s.Token
 }
 
-func (s *Storage) GetLocalSyncTime() time.Time {
+func (s *storage) GetLocalSyncTime() time.Time {
 	return s.UpdatedAt
 }

@@ -127,7 +127,7 @@ func (s *YaGophKeeperServer) AuthInterceptor(ctx context.Context, req interface{
 			s.logger.Debug(values[0])
 			token, err = jwt.Parse(values[0], func(token *jwt.Token) (interface{}, error) {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 				}
 				return s.secretKey, nil
 			})
