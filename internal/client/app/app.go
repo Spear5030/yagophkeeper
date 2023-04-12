@@ -21,11 +21,11 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	repo, err := storage.New("user.dat", lg)
+	repo, err := storage.New(cfg.FileStorage, lg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	grpcl := grpcclient.New("localhost:12345", repo.Token) //todo cfg
+	grpcl := grpcclient.New(cfg.Addr, cfg.Cert, repo.GetToken())
 	useCase := usecase.New(repo, grpcl, lg)
 	cliclient := cli.New(lg, useCase)
 

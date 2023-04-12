@@ -19,9 +19,9 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := storage.New("test.ppb", lg)
+	s := storage.New(cfg.FileStorage, lg)
 	uc := usecase.New(s, lg)
-	srv := server.New(uc, lg, "12345") //todo cfg
+	srv := server.New(uc, lg, cfg)
 	return &App{GRPCServer: srv, logger: lg}, nil
 }
 
