@@ -60,13 +60,19 @@ func (pp *storage) RegisterUser(email string, hashedPassword []byte) (err error)
 	err = pp.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("users"))
 		err = b.Put([]byte(email), hashedPassword)
-		pp.logger.Debug("err", zap.Error(err))
+		if err != nil {
+			pp.logger.Debug("err", zap.Error(err))
+			return err
+		}
 		return err
 	})
 	err = pp.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("users"))
 		err = b.Put([]byte(email), hashedPassword)
-		pp.logger.Debug("err", zap.Error(err))
+		if err != nil {
+			pp.logger.Debug("err", zap.Error(err))
+			return err
+		}
 		return err
 	})
 	return err

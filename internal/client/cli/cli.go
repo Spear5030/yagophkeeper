@@ -14,6 +14,7 @@ type usecase interface {
 	RegisterUser(user domain.User) error
 	LoginUser(user domain.User) error
 	CheckSync() (time.Time, error)
+	GetLocalSyncTime() time.Time
 	SyncData() error
 }
 
@@ -117,6 +118,8 @@ func (cli *CLI) CheckSync() {
 				fmt.Println(err)
 			}
 			fmt.Println("Secrets on server last sync time:", t)
+			t = cli.usecase.GetLocalSyncTime()
+			fmt.Println("Local secrets last sync time:", t)
 		},
 	}
 	rootCmd.AddCommand(checkSyncCmd)

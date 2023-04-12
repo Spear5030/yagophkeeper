@@ -22,6 +22,7 @@ type storage interface {
 	UpdateTime() error
 	GetData() ([]byte, error)
 	SetData(data []byte) error
+	GetLocalSyncTime() time.Time
 }
 
 type usecase struct {
@@ -35,11 +36,14 @@ type usecase struct {
 }
 
 func New(storage storage, network network, logger *zap.Logger) *usecase {
-	return &usecase{
+	var uc = &usecase{
 		logger:  logger,
 		storage: storage,
 		network: network,
 	}
+
+	uc.localSyncTime = storage.GetLocalSyncTime()
+	return uc
 }
 
 func (u *usecase) ListSecrets() []domain.LoginPassword {
@@ -83,15 +87,30 @@ func (u *usecase) LoginUser(user domain.User) error {
 
 func (u *usecase) CheckSync() (time.Time, error) {
 	t, err := u.network.CheckSync(u.email)
+	u.serverSyncTime = t
 	if err != nil {
 		return time.Time{}, err
 	}
 	return t, err
 }
 
+func (u *usecase) GetLocalSyncTime() time.Time {
+	return u.storage.GetLocalSyncTime()
+}
+
 func (u *usecase) SyncData() error {
 	var data []byte
 	var err error
+	if u.serverSyncTime.IsZero() {
+		_, err = u.CheckSync()
+		if err != nil {
+			return err
+		}
+	}
+	if u.localSyncTime.IsZero() {
+		u.localSyncTime = u.storage.GetLocalSyncTime()
+	}
+
 	if u.serverSyncTime.After(u.localSyncTime) {
 		data, err = u.network.GetData(u.email)
 		if err != nil {

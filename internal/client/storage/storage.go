@@ -21,11 +21,6 @@ const (
 	TypeCard          byte = 0x4
 )
 
-const (
-	VersionFile byte = 0x1
-	CryptoAlg   byte = 0x1 //tmp
-)
-
 type Storage struct {
 	filename string
 	logger   *zap.Logger
@@ -47,7 +42,7 @@ func New(filename string, logger *zap.Logger) (*Storage, error) {
 	fstat, err := os.Stat(filename)
 	storage.filename = filename
 	if (errors.Is(err, os.ErrNotExist)) || (fstat.Size() == 0) {
-		storage.UpdatedAt = time.Now()
+		storage.UpdatedAt = time.Time{} //zero time
 		err = storage.writeHeaders()
 		if err != nil {
 			logger.Error("new file error", zap.Error(err))
@@ -213,4 +208,8 @@ func (s *Storage) SetData(data []byte) error {
 
 func (s *Storage) GetToken() string {
 	return s.Token
+}
+
+func (s *Storage) GetLocalSyncTime() time.Time {
+	return s.UpdatedAt
 }
