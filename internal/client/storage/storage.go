@@ -37,6 +37,8 @@ type fileHeaders struct {
 	Token      string
 }
 
+// New возвращает файловое хранилище. Если файла filename не существует создает его через writeHeaders
+// Если существует - считывает служебные данные через readHeaders и основные в gob через разделитель с указанием типа
 func New(filename string, logger *zap.Logger) (*storage, error) {
 	var storage storage
 	fstat, err := os.Stat(filename)
@@ -96,8 +98,8 @@ func New(filename string, logger *zap.Logger) (*storage, error) {
 	return &storage, nil
 }
 
+// writeHeaders записывает служебные поля из структуры fileHeaders в файл
 func (s *storage) writeHeaders() error {
-
 	file, err := os.OpenFile(s.filename, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		s.logger.Debug(err.Error())
@@ -105,7 +107,6 @@ func (s *storage) writeHeaders() error {
 	}
 	defer file.Close()
 	var buffer bytes.Buffer
-	//var tmp fileHeaders
 	if err = gob.NewEncoder(&buffer).Encode(s.fileHeaders); err != nil {
 		s.logger.Debug(err.Error())
 		return err
@@ -118,6 +119,7 @@ func (s *storage) writeHeaders() error {
 	return file.Sync()
 }
 
+// readHeaders считывает служебные поля из файла в структуру fileHeaders
 func (s *storage) readHeaders() error {
 	file, err := os.OpenFile(s.filename, os.O_RDONLY, 0644)
 	if err != nil {
@@ -138,6 +140,7 @@ func (s *storage) readHeaders() error {
 	return nil
 }
 
+// SaveUserData сохраняет данные о пользователе в структуру fileHeaders и файл
 func (s *storage) SaveUserData(user domain.User, token string) error {
 	var err error
 	s.Email = user.Email
@@ -153,6 +156,7 @@ func (s *storage) SaveUserData(user domain.User, token string) error {
 	return nil
 }
 
+// UpdatedAt сохраняет время обновления в структуру fileHeaders и файл
 func (s *storage) UpdateTime() error {
 	s.UpdatedAt = time.Now()
 	err := s.writeHeaders()
@@ -162,6 +166,7 @@ func (s *storage) UpdateTime() error {
 	return nil
 }
 
+// AddLoginPassword добавляет(через append) структуру секрета логин-пароль в файл и память
 func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
 	s.lps = append(s.lps, lp)
 	file, err := os.OpenFile(s.filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
@@ -186,6 +191,7 @@ func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
 	return file.Sync()
 }
 
+// ListSecrets вывод секретов
 func (s *storage) ListSecrets() []domain.LoginPassword {
 	if len(s.lps) == 0 {
 		return nil
@@ -193,6 +199,7 @@ func (s *storage) ListSecrets() []domain.LoginPassword {
 	return s.lps
 }
 
+// GetData Чтение всего файла секретов
 func (s *storage) GetData() ([]byte, error) {
 	b, err := os.ReadFile(s.filename)
 	if err != nil {
@@ -201,6 +208,7 @@ func (s *storage) GetData() ([]byte, error) {
 	return b, nil
 }
 
+// SetData Запись всего файла секретов
 func (s *storage) SetData(data []byte) error {
 	err := os.WriteFile(s.filename, data, 0644)
 	if err != nil {
@@ -209,10 +217,12 @@ func (s *storage) SetData(data []byte) error {
 	return nil
 }
 
+// GetToken возвращает токен пользователя
 func (s *storage) GetToken() string {
 	return s.Token
 }
 
+// GetLocalSyncTime возвращает время обновления
 func (s *storage) GetLocalSyncTime() time.Time {
 	return s.UpdatedAt
 }

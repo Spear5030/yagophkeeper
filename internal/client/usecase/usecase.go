@@ -97,6 +97,7 @@ func (u *usecase) GetLocalSyncTime() time.Time {
 	return u.storage.GetLocalSyncTime()
 }
 
+// SyncData сравнивает время обновления на сервере и локально. Синхронизирует файлы секретов на сервере и локально
 func (u *usecase) SyncData() error {
 	var data []byte
 	var err error
