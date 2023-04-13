@@ -61,7 +61,7 @@ func New(usecase usecase, logger *zap.Logger, cfg config.Config) *YaGophKeeperSe
 	return s
 }
 
-// Start слушает определенный порт и запускает в горутине grpc сервер
+// Start слушает определенный порт и запускает grpc сервер
 func (s *YaGophKeeperServer) Start() error {
 	l, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
