@@ -20,7 +20,7 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 	s := storage.New(cfg.FileStorage, lg)
-	uc := usecase.New(s, lg)
+	uc := usecase.New(s, lg, cfg.Secret)
 	srv := server.New(uc, lg, cfg)
 	return &App{GRPCServer: srv, logger: lg}, nil
 }

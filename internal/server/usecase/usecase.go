@@ -17,14 +17,16 @@ type storage interface {
 }
 
 type usecase struct {
-	storage storage
-	logger  *zap.Logger
+	storage   storage
+	logger    *zap.Logger
+	secretKey string
 }
 
-func New(s storage, lg *zap.Logger) *usecase {
+func New(s storage, lg *zap.Logger, secret string) *usecase {
 	return &usecase{
-		storage: s,
-		logger:  lg,
+		storage:   s,
+		logger:    lg,
+		secretKey: secret,
 	}
 }
 
@@ -48,7 +50,7 @@ func (uc *usecase) RegisterUser(email string, password string) (token string, er
 		uc.logger.Debug("Register error", zap.Error(err))
 		return "", err
 	}
-	token, err = genJWT("secret", email) //todo cfg
+	token, err = genJWT(uc.secretKey, email)
 	if err != nil {
 		uc.logger.Debug("genToken error", zap.Error(err))
 		return "", err
@@ -65,7 +67,7 @@ func (uc *usecase) LoginUser(email string, password string) (token string, err e
 	if err != nil {
 		return "", err
 	}
-	token, err = genJWT("secret", email) //todo cfg
+	token, err = genJWT(uc.secretKey, email)
 	if err != nil {
 		return "", err
 	}

@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -39,8 +38,8 @@ type fileHeaders struct {
 	Token      string
 }
 
-// New возвращает файловое хранилище. Если файла filename не существует создает его через writeHeaders
-// Если существует - считывает служебные данные через readHeaders и основные в gob через разделитель с указанием типа
+// New возвращает файловое хранилище.
+// Если существует - считывает служебные данные
 func New(filename string, logger *zap.Logger) (*storage, error) {
 	var storage storage
 	fstat, err := os.Stat(filename)
@@ -49,10 +48,7 @@ func New(filename string, logger *zap.Logger) (*storage, error) {
 
 	if (errors.Is(err, os.ErrNotExist)) || (fstat.Size() == 0) {
 		storage.UpdatedAt = time.Time{} //zero time
-		err = storage.writeHeaders()
-		if err != nil {
-			logger.Error("new file error", zap.Error(err))
-		}
+
 	} else {
 		err = storage.readFile()
 		if err != nil {
@@ -61,17 +57,6 @@ func New(filename string, logger *zap.Logger) (*storage, error) {
 	}
 
 	return &storage, nil
-}
-
-// writeHeaders записывает служебные поля из структуры fileHeaders в файл
-func (s *storage) writeHeaders() error {
-	headers, err := s.makeHeaders()
-	if err != nil {
-		return err
-	}
-	encrypted := s.encrypt(headers, "N1PCdw3M2B1TfJhoaY2mL736p2vCUc47")
-	err = os.WriteFile(s.filename, encrypted, 0644)
-	return err
 }
 
 // readHeaders считывает служебные поля в структуру fileHeaders
@@ -93,7 +78,7 @@ func (s *storage) SaveUserData(user domain.User, token string) error {
 	if err != nil {
 		return err
 	}
-	//err = s.writeHeaders()
+	err = s.writeFile()
 	if err != nil {
 		return err
 	}
@@ -103,10 +88,10 @@ func (s *storage) SaveUserData(user domain.User, token string) error {
 // UpdateTime сохраняет время обновления в структуру fileHeaders и файл
 func (s *storage) UpdateTime() error {
 	s.UpdatedAt = time.Now()
-	//err := s.writeHeaders()
-	//if err != nil {
-	//	return err
-	//}
+	err := s.writeFile()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -137,9 +122,6 @@ func (s *storage) makeBody() ([]byte, error) {
 			return nil, err
 		}
 		_, err = buf.Write([]byte{30}) // record separator
-		//fmt.Println(buf.Bytes())
-		//fmt.Println(buf.String())
-		//encrypted := s.encrypt(buffer.Bytes(), "N1PCdw3M2B1TfJhoaY2mL736p2vCUc47") //todo
 		if err != nil {
 			return nil, err
 		}
@@ -277,7 +259,6 @@ func (s *storage) decrypt(b []byte, keyString string) (decryptedBytes []byte) {
 
 	block, err := aes.NewCipher([]byte(keyString))
 	if err != nil {
-		fmt.Println(err)
 		s.logger.Debug(err.Error())
 	}
 	aesGCM, err := cipher.NewGCM(block)
