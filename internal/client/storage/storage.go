@@ -109,6 +109,10 @@ func (s *storage) makeHeaders() ([]byte, error) {
 		return nil, err
 	}
 	_, err = buf.Write([]byte{30})
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
 	return buf.Bytes(), nil
 }
 
@@ -117,6 +121,10 @@ func (s *storage) makeBody() ([]byte, error) {
 	var buf bytes.Buffer
 	for _, lp := range s.lps {
 		_, err = buf.Write([]byte{TypeLoginPassword})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
 		if err = gob.NewEncoder(&buf).Encode(lp); err != nil {
 			s.logger.Debug(err.Error())
 			return nil, err
@@ -131,7 +139,15 @@ func (s *storage) makeBody() ([]byte, error) {
 
 func (s *storage) writeFile() error {
 	headers, err := s.makeHeaders()
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return err
+	}
 	body, err := s.makeBody()
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return err
+	}
 	full := make([]byte, 0, len(headers)+len(body))
 	full = append(full, headers...)
 	full = append(full, body...)
