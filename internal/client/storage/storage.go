@@ -23,9 +23,10 @@ const (
 )
 
 type storage struct {
-	filename string
-	logger   *zap.Logger
-	lps      []domain.LoginPassword
+	filename   string
+	masterPass string
+	logger     *zap.Logger
+	lps        []domain.LoginPassword
 	fileHeaders
 }
 
@@ -40,11 +41,12 @@ type fileHeaders struct {
 
 // New возвращает файловое хранилище.
 // Если существует - считывает служебные данные
-func New(filename string, logger *zap.Logger) (*storage, error) {
+func New(filename string, masterPass string, logger *zap.Logger) (*storage, error) {
 	var storage storage
 	fstat, err := os.Stat(filename)
 	storage.filename = filename
 	storage.logger = logger
+	storage.masterPass = masterPass
 
 	if (errors.Is(err, os.ErrNotExist)) || (fstat.Size() == 0) {
 		storage.UpdatedAt = time.Time{} //zero time
@@ -95,7 +97,7 @@ func (s *storage) UpdateTime() error {
 	return nil
 }
 
-// AddLoginPassword добавляет(через append) структуру секрета логин-пароль в файл и память
+// AddLoginPassword добавляет структуру логин-пароль и записывает файл
 func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
 	s.lps = append(s.lps, lp)
 	return s.writeFile()
@@ -151,7 +153,7 @@ func (s *storage) writeFile() error {
 	full := make([]byte, 0, len(headers)+len(body))
 	full = append(full, headers...)
 	full = append(full, body...)
-	encrypted := s.encrypt(full, "N1PCdw3M2B1TfJhoaY2mL736p2vCUc47")
+	encrypted := s.encrypt(full, s.masterPass)
 	err = os.WriteFile(s.filename, encrypted, 0644)
 	if err != nil {
 		s.logger.Debug(err.Error())
@@ -162,7 +164,7 @@ func (s *storage) writeFile() error {
 
 func (s *storage) readFile() error {
 	encrypted, err := os.ReadFile(s.filename)
-	b := s.decrypt(encrypted, "N1PCdw3M2B1TfJhoaY2mL736p2vCUc47") // todo
+	b := s.decrypt(encrypted, s.masterPass)
 	if err != nil {
 		s.logger.Error("read file error", zap.Error(err))
 	}
@@ -195,7 +197,6 @@ func (s *storage) readFile() error {
 		switch secretType {
 		case TypeLoginPassword:
 			lp := &domain.LoginPassword{}
-			//buffer.Write(decrypted)
 			bufferGob.Write(b)
 			err := gob.NewDecoder(bufferGob).Decode(lp)
 			if err != nil {
@@ -270,8 +271,6 @@ func (s *storage) encrypt(b []byte, keyString string) (encryptedBytes []byte) {
 }
 
 func (s *storage) decrypt(b []byte, keyString string) (decryptedBytes []byte) {
-
-	//key, _ := hex.DecodeString([]byte(keyString))
 
 	block, err := aes.NewCipher([]byte(keyString))
 	if err != nil {

@@ -83,7 +83,6 @@ func (s *YaGophKeeperServer) RegisterUser(ctx context.Context, user *pb.User) (*
 
 func (s *YaGophKeeperServer) CheckSync(ctx context.Context, req *pb.CheckSyncRequest) (*pb.SyncResponse, error) {
 	var resp = &pb.SyncResponse{}
-	fmt.Println(req)
 	email := getEmailFromContext(ctx)
 	s.logger.Debug(email)
 	lastSync, err := s.usecase.GetLastSyncTime(email)

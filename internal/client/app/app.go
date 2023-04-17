@@ -21,7 +21,7 @@ func New(cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	repo, err := storage.New(cfg.FileStorage, lg)
+	repo, err := storage.New(cfg.FileStorage, cfg.MasterPass, lg)
 	if err != nil {
 		log.Fatal(err)
 	}
