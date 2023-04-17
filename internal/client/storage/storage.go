@@ -27,6 +27,9 @@ type storage struct {
 	masterPass string
 	logger     *zap.Logger
 	lps        []domain.LoginPassword
+	tds        []domain.TextData
+	bds        []domain.BinaryData
+	cards      []domain.CardData
 	fileHeaders
 }
 
@@ -99,7 +102,26 @@ func (s *storage) UpdateTime() error {
 
 // AddLoginPassword добавляет структуру логин-пароль и записывает файл
 func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
+	lp.Key = len(s.lps) + 1
 	s.lps = append(s.lps, lp)
+	return s.writeFile()
+}
+
+func (s *storage) AddTextData(td domain.TextData) error {
+	td.Key = len(s.tds) + 1
+	s.tds = append(s.tds, td)
+	return s.writeFile()
+}
+
+func (s *storage) AddBinaryData(bd domain.BinaryData) error {
+	bd.Key = len(s.bds) + 1
+	s.bds = append(s.bds, bd)
+	return s.writeFile()
+}
+
+func (s *storage) AddCardData(card domain.CardData) error {
+	card.Key = len(s.cards) + 1
+	s.cards = append(s.cards, card)
 	return s.writeFile()
 }
 
@@ -128,6 +150,51 @@ func (s *storage) makeBody() ([]byte, error) {
 			return nil, err
 		}
 		if err = gob.NewEncoder(&buf).Encode(lp); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, bd := range s.bds {
+		_, err = buf.Write([]byte{TypeBinary})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(bd); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, td := range s.tds {
+		_, err = buf.Write([]byte{TypeText})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(td); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, card := range s.cards {
+		_, err = buf.Write([]byte{TypeCard})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(card); err != nil {
 			s.logger.Debug(err.Error())
 			return nil, err
 		}
@@ -205,8 +272,32 @@ func (s *storage) readFile() error {
 			bufferGob.Reset()
 			s.lps = append(s.lps, *lp)
 		case TypeText:
+			td := &domain.TextData{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(td)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.tds = append(s.tds, *td)
 		case TypeBinary:
+			bd := &domain.BinaryData{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(bd)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.bds = append(s.bds, *bd)
 		case TypeCard:
+			card := &domain.CardData{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(card)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.cards = append(s.cards, *card)
 		default:
 			continue
 		}
@@ -215,11 +306,20 @@ func (s *storage) readFile() error {
 }
 
 // ListSecrets вывод секретов
-func (s *storage) ListSecrets() []domain.LoginPassword {
-	if len(s.lps) == 0 {
-		return nil
-	}
+func (s *storage) GetLogins() []domain.LoginPassword {
 	return s.lps
+}
+
+func (s *storage) GetTextData() []domain.TextData {
+	return s.tds
+}
+
+func (s *storage) GetBinaryData() []domain.BinaryData {
+	return s.bds
+}
+
+func (s *storage) GetCardsData() []domain.CardData {
+	return s.cards
 }
 
 // GetData Чтение всего файла секретов

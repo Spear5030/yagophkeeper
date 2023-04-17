@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"go.uber.org/zap"
 
@@ -16,8 +17,14 @@ type network interface {
 }
 
 type storage interface {
-	ListSecrets() []domain.LoginPassword
+	GetLogins() []domain.LoginPassword
+	GetTextData() []domain.TextData
+	GetBinaryData() []domain.BinaryData
+	GetCardsData() []domain.CardData
 	AddLoginPassword(domain.LoginPassword) error
+	AddTextData(domain.TextData) error
+	AddBinaryData(domain.BinaryData) error
+	AddCardData(domain.CardData) error
 	SaveUserData(user domain.User, token string) error
 	UpdateTime() error
 	GetData() ([]byte, error)
@@ -45,12 +52,56 @@ func New(storage storage, network network, logger *zap.Logger) *usecase {
 	return uc
 }
 
-func (u *usecase) ListSecrets() []domain.LoginPassword {
-	return u.storage.ListSecrets()
+func (u *usecase) ListSecrets() []string {
+	var result []string
+	result = append(result, "Logins:")
+	for _, l := range u.storage.GetLogins() {
+		result = append(result, fmt.Sprintf("Key[%d],%s:%s", l.Key, l.Login, l.Password))
+	}
+	result = append(result, "Texts:")
+	for _, txt := range u.storage.GetTextData() {
+		result = append(result, fmt.Sprintf("Key[%d],%s", txt.Key, txt.Text))
+	}
+	result = append(result, "Cards:")
+	for _, card := range u.storage.GetCardsData() {
+		result = append(result, fmt.Sprintf("Key[%d],%s,%s,%s", card.Key, card.Number, card.CVC, card.CardHolder))
+	}
+	result = append(result, "Binary:")
+	for _, b := range u.storage.GetBinaryData() {
+		result = append(result, fmt.Sprintf("Key[%d],%s,%b", b.Key, b.Meta, b.BinaryData[:20]))
+	}
+	return result
 }
 
 func (u *usecase) AddLoginPassword(lp domain.LoginPassword) error {
 	err := u.storage.AddLoginPassword(lp)
+	if err != nil {
+		return err
+	}
+	u.localSyncTime = time.Now()
+	return u.storage.UpdateTime()
+}
+
+func (u *usecase) AddTextData(td domain.TextData) error {
+	err := u.storage.AddTextData(td)
+	if err != nil {
+		return err
+	}
+	u.localSyncTime = time.Now()
+	return u.storage.UpdateTime()
+}
+
+func (u *usecase) AddBinaryData(bd domain.BinaryData) error {
+	err := u.storage.AddBinaryData(bd)
+	if err != nil {
+		return err
+	}
+	u.localSyncTime = time.Now()
+	return u.storage.UpdateTime()
+}
+
+func (u *usecase) AddCardData(card domain.CardData) error {
+	err := u.storage.AddCardData(card)
 	if err != nil {
 		return err
 	}
