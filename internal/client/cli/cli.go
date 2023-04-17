@@ -20,6 +20,8 @@ type usecase interface {
 	CheckSync() (time.Time, error)
 	GetLocalSyncTime() time.Time
 	SyncData() error
+	GetVersion() string
+	GetBuildTime() string
 }
 
 type CLI struct {
@@ -38,6 +40,7 @@ func New(logger *zap.Logger, usecase usecase) *CLI {
 	c.AddCardCmd()
 	c.AddTextCmd()
 	c.AddBinaryCmd()
+	c.Version()
 	rootCmd.AddCommand(addCmd)
 	return &c
 }
@@ -212,4 +215,17 @@ func (cli *CLI) LoginUser() {
 	logUserCmd.Flags().StringVarP(&user.Password, "password", "p", "", "password (required)")
 	logUserCmd.MarkFlagRequired("password")
 	rootCmd.AddCommand(logUserCmd)
+}
+
+func (cli *CLI) Version() {
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "get version",
+		Long:  `get version and build time`,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Version:" + cli.usecase.GetVersion())
+			fmt.Println("Build time:" + cli.usecase.GetBuildTime())
+		},
+	}
+	rootCmd.AddCommand(versionCmd)
 }

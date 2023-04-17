@@ -16,7 +16,7 @@ type App struct {
 	cli    *cli.CLI
 }
 
-func New(cfg config.Config) (*App, error) {
+func New(cfg config.Config, version string, buildTime string) (*App, error) {
 	lg, err := logger.New(true)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func New(cfg config.Config) (*App, error) {
 		log.Fatal(err)
 	}
 	grpcl := grpcclient.New(cfg.Addr, cfg.Cert, repo.GetToken())
-	useCase := usecase.New(repo, grpcl, lg)
+	useCase := usecase.New(repo, grpcl, version, buildTime, lg)
 	cliclient := cli.New(lg, useCase)
 
 	return &App{

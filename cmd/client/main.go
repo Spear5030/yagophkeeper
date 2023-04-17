@@ -6,12 +6,15 @@ import (
 	"log"
 )
 
+var Version string
+var BuildTime string
+
 func main() {
 	cfg, err := config.New()
 	if err != nil {
 		log.Fatal(err)
 	}
-	a, err := app.New(cfg)
+	a, err := app.New(cfg, Version, BuildTime)
 	if err != nil {
 		log.Fatal(err)
 	}

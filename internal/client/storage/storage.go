@@ -26,7 +26,7 @@ type storage struct {
 	filename   string
 	masterPass string
 	logger     *zap.Logger
-	lps        []domain.LoginPassword
+	lps        []domain.LoginPassword // TODO maps for delete
 	tds        []domain.TextData
 	bds        []domain.BinaryData
 	cards      []domain.CardData

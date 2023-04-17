@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"go.uber.org/zap"
-
 	"time"
 )
 
@@ -39,13 +38,17 @@ type usecase struct {
 	email          string
 	serverSyncTime time.Time
 	localSyncTime  time.Time
+	version        string
+	buildTime      string
 }
 
-func New(storage storage, network network, logger *zap.Logger) *usecase {
+func New(storage storage, network network, version string, buildTime string, logger *zap.Logger) *usecase {
 	var uc = &usecase{
-		logger:  logger,
-		storage: storage,
-		network: network,
+		logger:    logger,
+		storage:   storage,
+		network:   network,
+		version:   version,
+		buildTime: buildTime,
 	}
 
 	uc.localSyncTime = storage.GetLocalSyncTime()
@@ -179,4 +182,12 @@ func (u *usecase) SyncData() error {
 		}
 	}
 	return nil
+}
+
+func (u *usecase) GetVersion() string {
+	return u.version
+}
+
+func (u *usecase) GetBuildTime() string {
+	return u.buildTime
 }
