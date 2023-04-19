@@ -17,6 +17,12 @@ examples and usage of using your application.`,
 	// Run: func(cli *cobra.Command, args []string) { },
 }
 
+var addCmd = &cobra.Command{
+	Use:   "add",
+	Short: "add secret",
+	Long:  `add secret`,
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func (cli *CLI) Execute() {

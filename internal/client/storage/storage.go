@@ -1,11 +1,12 @@
 package storage
 
 import (
-	"bufio"
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -21,15 +22,14 @@ const (
 	TypeCard          byte = 0x4
 )
 
-const (
-	VersionFile byte = 0x1
-	CryptoAlg   byte = 0x1 //tmp
-)
-
-type Storage struct {
-	filename string
-	logger   *zap.Logger
-	lps      []domain.LoginPassword
+type storage struct {
+	filename   string
+	masterPass string
+	logger     *zap.Logger
+	lps        []domain.LoginPassword // TODO maps for delete
+	tds        []domain.TextData
+	bds        []domain.BinaryData
+	cards      []domain.CardData
 	fileHeaders
 }
 
@@ -42,105 +42,40 @@ type fileHeaders struct {
 	Token      string
 }
 
-func New(filename string, logger *zap.Logger) (*Storage, error) {
-	var storage Storage
+// New возвращает файловое хранилище.
+// Если существует - считывает служебные данные
+func New(filename string, masterPass string, logger *zap.Logger) (*storage, error) {
+	var s storage
 	fstat, err := os.Stat(filename)
-	storage.filename = filename
-	if (errors.Is(err, os.ErrNotExist)) || (fstat.Size() == 0) {
-		storage.UpdatedAt = time.Now()
-		err = storage.writeHeaders()
-		if err != nil {
-			logger.Error("new file error", zap.Error(err))
-		}
+	s.filename = filename
+	s.logger = logger
+	s.masterPass = masterPass
+
+	if errors.Is(err, os.ErrNotExist) || fstat.Size() == 0 {
+		s.UpdatedAt = time.Time{} //zero time
+
 	} else {
-		err = storage.readHeaders()
-		if err != nil {
-			logger.Error("new file error", zap.Error(err))
-		}
-		file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+		err = s.readFile()
 		if err != nil {
 			return nil, err
 		}
-		defer file.Close()
-		rd := bufio.NewReader(file)
-		var buffer bytes.Buffer
-		for {
-			b, err := rd.ReadBytes(30) // record separator
-			if err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					fmt.Println(err)
-					break
-				}
-			}
-			var secretType byte
-			if len(b) > 1 {
-				secretType = b[0]
-				b = b[1:]
-			}
-			switch secretType {
-			case TypeLoginPassword:
-				lp := &domain.LoginPassword{}
-				buffer.Write(b)
-				err := gob.NewDecoder(&buffer).Decode(lp)
-				if err != nil {
-					fmt.Println(err)
-				}
-				buffer.Reset()
-				storage.lps = append(storage.lps, *lp)
-			case TypeText:
-			case TypeBinary:
-			case TypeCard:
-			default:
-				continue
-			}
-		}
 	}
-	storage.logger = logger
-	return &storage, nil
+
+	return &s, nil
 }
 
-func (s *Storage) writeHeaders() error {
-
-	file, err := os.OpenFile(s.filename, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
+// readHeaders считывает служебные поля в структуру fileHeaders
+func (s *storage) readHeaders(b []byte) error {
+	buf := bytes.NewBuffer(b)
+	if err := gob.NewDecoder(buf).Decode(&s.fileHeaders); err != nil {
 		s.logger.Debug(err.Error())
-		return err
-	}
-	defer file.Close()
-	var buffer bytes.Buffer
-	//var tmp fileHeaders
-	if err = gob.NewEncoder(&buffer).Encode(s.fileHeaders); err != nil {
-		s.logger.Debug(err.Error())
-		return err
-	}
-
-	_, err = file.Write(append(buffer.Bytes(), 30)) // record separator
-	if err != nil {
-		return err
-	}
-	return file.Sync()
-}
-
-func (s *Storage) readHeaders() error {
-	file, err := os.OpenFile(s.filename, os.O_RDONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	var buffer bytes.Buffer
-	rd := bufio.NewReader(file)
-	b, err := rd.ReadBytes(30)
-	buffer.Write(b)
-	if err = gob.NewDecoder(&buffer).Decode(&s.fileHeaders); err != nil {
-		fmt.Println(err)
 		return err
 	}
 	return nil
 }
 
-func (s *Storage) SaveUserData(user domain.User, token string) error {
+// SaveUserData сохраняет данные о пользователе в структуру fileHeaders и файл
+func (s *storage) SaveUserData(user domain.User, token string) error {
 	var err error
 	s.Email = user.Email
 	s.Token = token
@@ -148,54 +83,255 @@ func (s *Storage) SaveUserData(user domain.User, token string) error {
 	if err != nil {
 		return err
 	}
-	err = s.writeHeaders()
+	err = s.writeFile()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Storage) UpdateTime() error {
+// UpdateTime сохраняет время обновления в структуру fileHeaders и файл
+func (s *storage) UpdateTime() error {
 	s.UpdatedAt = time.Now()
-	err := s.writeHeaders()
+	err := s.writeFile()
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Storage) AddLoginPassword(lp domain.LoginPassword) error {
+// AddLoginPassword добавляет структуру логин-пароль и записывает файл
+func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
+	lp.Key = len(s.lps) + 1
 	s.lps = append(s.lps, lp)
-	file, err := os.OpenFile(s.filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	var buffer bytes.Buffer
-	if err = gob.NewEncoder(&buffer).Encode(lp); err != nil {
-		fmt.Println(err)
-		return err
-	}
-
-	_, err = file.Write([]byte{TypeLoginPassword})
-	if err != nil {
-		return err
-	}
-	_, err = file.Write(append(buffer.Bytes(), 30)) // record separator
-	if err != nil {
-		return err
-	}
-	return file.Sync()
+	return s.writeFile()
 }
 
-func (s *Storage) ListSecrets() []domain.LoginPassword {
-	if len(s.lps) == 0 {
-		return nil
+func (s *storage) AddTextData(td domain.TextData) error {
+	td.Key = len(s.tds) + 1
+	s.tds = append(s.tds, td)
+	return s.writeFile()
+}
+
+func (s *storage) AddBinaryData(bd domain.BinaryData) error {
+	bd.Key = len(s.bds) + 1
+	s.bds = append(s.bds, bd)
+	return s.writeFile()
+}
+
+func (s *storage) AddCardData(card domain.CardData) error {
+	card.Key = len(s.cards) + 1
+	s.cards = append(s.cards, card)
+	return s.writeFile()
+}
+
+func (s *storage) makeHeaders() ([]byte, error) {
+	var buf bytes.Buffer
+	var err error
+	if err = gob.NewEncoder(&buf).Encode(s.fileHeaders); err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
 	}
+	_, err = buf.Write([]byte{30})
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (s *storage) makeBody() ([]byte, error) {
+	var err error
+	var buf bytes.Buffer
+	for _, lp := range s.lps {
+		_, err = buf.Write([]byte{TypeLoginPassword})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(lp); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, bd := range s.bds {
+		_, err = buf.Write([]byte{TypeBinary})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(bd); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, td := range s.tds {
+		_, err = buf.Write([]byte{TypeText})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(td); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, card := range s.cards {
+		_, err = buf.Write([]byte{TypeCard})
+		if err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		if err = gob.NewEncoder(&buf).Encode(card); err != nil {
+			s.logger.Debug(err.Error())
+			return nil, err
+		}
+		_, err = buf.Write([]byte{30}) // record separator
+		if err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func (s *storage) writeFile() error {
+	headers, err := s.makeHeaders()
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return err
+	}
+	body, err := s.makeBody()
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return err
+	}
+	full := make([]byte, 0, len(headers)+len(body))
+	full = append(full, headers...)
+	full = append(full, body...)
+	encrypted, err := s.encrypt(full, s.masterPass)
+	if err != nil {
+		s.logger.Error("encrypt file error", zap.Error(err))
+		return err
+	}
+	err = os.WriteFile(s.filename, encrypted, 0644)
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (s *storage) readFile() error {
+	encrypted, err := os.ReadFile(s.filename)
+	if err != nil {
+		s.logger.Error("read file error", zap.Error(err))
+		return err
+	}
+	b, err := s.decrypt(encrypted, s.masterPass)
+	if err != nil {
+		s.logger.Error("decrypt file error", zap.Error(err))
+		return err
+	}
+	buf := bytes.NewBuffer(b)
+	headers, err := buf.ReadBytes(30)
+	if err != nil {
+		return err
+	}
+	err = s.readHeaders(headers)
+	if err != nil {
+		return err
+	}
+	for {
+		b, err := buf.ReadBytes(30) // record separator
+		if err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				s.logger.Debug(err.Error())
+				break
+			}
+		}
+		var secretType byte
+		if len(b) > 2 {
+			secretType = b[0]
+			b = b[1:]
+		}
+		bufferGob := bytes.NewBuffer(b)
+
+		switch secretType {
+		case TypeLoginPassword:
+			lp := &domain.LoginPassword{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(lp)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.lps = append(s.lps, *lp)
+		case TypeText:
+			td := &domain.TextData{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(td)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.tds = append(s.tds, *td)
+		case TypeBinary:
+			bd := &domain.BinaryData{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(bd)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.bds = append(s.bds, *bd)
+		case TypeCard:
+			card := &domain.CardData{}
+			bufferGob.Write(b)
+			err := gob.NewDecoder(bufferGob).Decode(card)
+			if err != nil {
+				s.logger.Debug(err.Error())
+			}
+			bufferGob.Reset()
+			s.cards = append(s.cards, *card)
+		default:
+			continue
+		}
+	}
+	return nil
+}
+
+func (s *storage) GetLogins() []domain.LoginPassword {
 	return s.lps
 }
 
-func (s *Storage) GetData() ([]byte, error) {
+func (s *storage) GetTextData() []domain.TextData {
+	return s.tds
+}
+
+func (s *storage) GetBinaryData() []domain.BinaryData {
+	return s.bds
+}
+
+func (s *storage) GetCardsData() []domain.CardData {
+	return s.cards
+}
+
+// GetData Чтение всего файла секретов
+func (s *storage) GetData() ([]byte, error) {
 	b, err := os.ReadFile(s.filename)
 	if err != nil {
 		return nil, err
@@ -203,7 +339,8 @@ func (s *Storage) GetData() ([]byte, error) {
 	return b, nil
 }
 
-func (s *Storage) SetData(data []byte) error {
+// SetData Запись всего файла секретов
+func (s *storage) SetData(data []byte) error {
 	err := os.WriteFile(s.filename, data, 0644)
 	if err != nil {
 		return err
@@ -211,6 +348,61 @@ func (s *Storage) SetData(data []byte) error {
 	return nil
 }
 
-func (s *Storage) GetToken() string {
+// GetToken возвращает токен пользователя
+func (s *storage) GetToken() string {
 	return s.Token
+}
+
+// GetLocalSyncTime возвращает время обновления
+func (s *storage) GetLocalSyncTime() time.Time {
+	return s.UpdatedAt
+}
+
+func (s *storage) encrypt(b []byte, keyString string) (encryptedBytes []byte, err error) {
+
+	block, err := aes.NewCipher([]byte(keyString))
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+	encryptedBytes = aesGCM.Seal(nonce, nonce, b, nil)
+	return encryptedBytes, nil
+}
+
+func (s *storage) decrypt(b []byte, keyString string) (decryptedBytes []byte, err error) {
+
+	block, err := aes.NewCipher([]byte(keyString))
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+
+	nonceSize := aesGCM.NonceSize()
+
+	nonce, ciphertext := b[:nonceSize], b[nonceSize:]
+
+	decryptedBytes, err = aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		s.logger.Debug(err.Error())
+		return nil, err
+	}
+
+	return decryptedBytes, nil
 }

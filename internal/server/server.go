@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/pb"
+	"github.com/Spear5030/yagophkeeper/internal/server/config"
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
@@ -35,20 +38,30 @@ type usecase interface {
 	GetData(email string) (data []byte, err error)
 }
 
-func New(usecase usecase, logger *zap.Logger, port string) *YaGophKeeperServer {
+func New(usecase usecase, logger *zap.Logger, cfg config.Config) *YaGophKeeperServer {
 	s := &YaGophKeeperServer{
 		usecase: usecase,
 		logger:  logger,
-		port:    port,
+		port:    cfg.Port,
 	}
-	s.server = grpc.NewServer(grpc.UnaryInterceptor(s.AuthInterceptor))
+
+	tlsCredentials, err := loadTLSCredentials(cfg.ServerCert, cfg.ServerKey)
+	if err != nil {
+		logger.Fatal("cannot load TLS credentials: ", zap.Error(err))
+		return nil
+	}
+
+	s.server = grpc.NewServer(
+		grpc.Creds(tlsCredentials),
+		grpc.UnaryInterceptor(s.AuthInterceptor),
+	)
 	reflection.Register(s.server) // for postman
 	pb.RegisterYaGophKeeperServer(s.server, s)
-	s.secretKey = []byte("secret") //todo config
+	s.secretKey = []byte(cfg.Secret)
 	return s
 }
 
-// Start слушает определенный порт и запускает в горутине grpc сервер
+// Start слушает определенный порт и запускает grpc сервер
 func (s *YaGophKeeperServer) Start() error {
 	l, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
@@ -70,7 +83,6 @@ func (s *YaGophKeeperServer) RegisterUser(ctx context.Context, user *pb.User) (*
 
 func (s *YaGophKeeperServer) CheckSync(ctx context.Context, req *pb.CheckSyncRequest) (*pb.SyncResponse, error) {
 	var resp = &pb.SyncResponse{}
-	fmt.Println(req)
 	email := getEmailFromContext(ctx)
 	s.logger.Debug(email)
 	lastSync, err := s.usecase.GetLastSyncTime(email)
@@ -127,7 +139,7 @@ func (s *YaGophKeeperServer) AuthInterceptor(ctx context.Context, req interface{
 			s.logger.Debug(values[0])
 			token, err = jwt.Parse(values[0], func(token *jwt.Token) (interface{}, error) {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 				}
 				return s.secretKey, nil
 			})
@@ -155,4 +167,18 @@ func getEmailFromContext(ctx context.Context) (email string) {
 		}
 	}
 	return
+}
+
+func loadTLSCredentials(cert string, key string) (credentials.TransportCredentials, error) {
+	serverCert, err := tls.LoadX509KeyPair(cert, key)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.NoClientCert,
+	}
+
+	return credentials.NewTLS(cfg), nil
 }

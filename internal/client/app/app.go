@@ -8,22 +8,25 @@ import (
 	"github.com/Spear5030/yagophkeeper/internal/client/usecase"
 	"github.com/Spear5030/yagophkeeper/pkg/logger"
 	"go.uber.org/zap"
+	"log"
 )
 
 type App struct {
 	logger *zap.Logger
 	cli    *cli.CLI
-	grpc   *grpcclient.Client
 }
 
-func New(cfg config.Config) (*App, error) {
+func New(cfg config.Config, version string, buildTime string) (*App, error) {
 	lg, err := logger.New(true)
 	if err != nil {
 		return nil, err
 	}
-	repo, err := storage.New("user.dat", lg)
-	grpcl := grpcclient.New("localhost:12345", repo.Token) //todo cfg
-	useCase := usecase.New(repo, grpcl, lg)
+	repo, err := storage.New(cfg.FileStorage, cfg.MasterPass, lg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	grpcl := grpcclient.New(cfg.Addr, cfg.Cert, repo.GetToken())
+	useCase := usecase.New(repo, grpcl, version, buildTime, lg)
 	cliclient := cli.New(lg, useCase)
 
 	return &App{
