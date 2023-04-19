@@ -128,11 +128,12 @@ func (u *usecase) LoginUser(user domain.User) error {
 		u.logger.Debug(err.Error())
 		return err
 	}
-	u.serverSyncTime, err = u.network.CheckSync(user.Email)
+	tSync, err := u.network.CheckSync(user.Email)
 	if err != nil {
 		u.logger.Debug(err.Error())
 		return err
 	}
+	u.serverSyncTime = tSync
 	err = u.storage.SaveUserData(user, token)
 	u.email = user.Email
 	return err
@@ -140,10 +141,10 @@ func (u *usecase) LoginUser(user domain.User) error {
 
 func (u *usecase) CheckSync() (time.Time, error) {
 	t, err := u.network.CheckSync(u.email)
-	u.serverSyncTime = t
 	if err != nil {
 		return time.Time{}, err
 	}
+	u.serverSyncTime = t
 	return t, err
 }
 

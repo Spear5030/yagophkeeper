@@ -5,7 +5,6 @@ import (
 	"errors"
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
-	"log"
 	"time"
 )
 
@@ -14,10 +13,11 @@ type storage struct {
 	logger *zap.Logger
 }
 
-func New(path string, lg *zap.Logger) *storage {
+func New(path string, lg *zap.Logger) (*storage, error) {
 	db, err := bbolt.Open(path, 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		lg.Debug(err.Error())
+		return nil, err
 	}
 	err = db.Update(func(tx *bbolt.Tx) error {
 		_, errCreate := tx.CreateBucketIfNotExists([]byte("users"))
@@ -35,12 +35,13 @@ func New(path string, lg *zap.Logger) *storage {
 		return nil
 	})
 	if err != nil {
-		lg.Fatal("errCreate buckets", zap.Error(err))
+		lg.Debug("errCreate buckets", zap.Error(err))
+		return nil, err
 	}
 	return &storage{
 		db:     db,
 		logger: lg,
-	}
+	}, nil
 }
 
 func (pp *storage) RegisterUser(email string, hashedPassword []byte) (err error) {

@@ -88,11 +88,7 @@ func (uc *usecase) SetData(email string, data []byte) (err error) {
 }
 
 func (uc *usecase) GetData(email string) (data []byte, err error) {
-	data, err = uc.storage.GetData(email)
-	if err != nil {
-		return nil, err
-	}
-	return
+	return uc.storage.GetData(email)
 }
 
 func genJWT(secretKey string, email string) (string, error) {

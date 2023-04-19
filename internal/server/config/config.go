@@ -15,9 +15,6 @@ type Config struct {
 
 var cfg Config
 
-func init() {
-}
-
 func New() (Config, error) {
 	if err := env.Parse(&cfg); err != nil {
 		return Config{}, err

@@ -72,14 +72,10 @@ func (c *Client) CheckSync(email string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	lastSync := time.Unix(resp.LastSync.Seconds, 0)
-	resp.GetLastSync()
-	if err != nil {
-		return time.Time{}, err
-	}
 	return lastSync, nil
 }
 
-func (c *Client) GetData(email string) ([]byte, error) {
+func (c *Client) GetData() ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	resp, err := c.yagkclient.GetData(ctx, &emptypb.Empty{})
@@ -89,12 +85,11 @@ func (c *Client) GetData(email string) ([]byte, error) {
 	return resp.Data, nil
 }
 
-func (c *Client) SendData(email string, data []byte) error {
+func (c *Client) SendData(data []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	secrets := &pb.Secrets{Data: data}
-	resp, err := c.yagkclient.SetData(ctx, secrets)
-	resp.GetLastSync()
+	_, err := c.yagkclient.SetData(ctx, secrets)
 	if err != nil {
 		return err
 	}
