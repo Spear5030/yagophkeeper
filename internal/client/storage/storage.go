@@ -8,6 +8,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
+	"github.com/spf13/afero"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"io"
@@ -42,11 +43,13 @@ type fileHeaders struct {
 	Token      string
 }
 
+var appFs = afero.NewOsFs()
+
 // New возвращает файловое хранилище.
 // Если существует - считывает служебные данные
 func New(filename string, masterPass string, logger *zap.Logger) (*storage, error) {
 	var s storage
-	fstat, err := os.Stat(filename)
+	fstat, err := appFs.Stat(filename)
 	s.filename = filename
 	s.logger = logger
 	s.masterPass = masterPass
@@ -220,12 +223,12 @@ func (s *storage) writeFile() error {
 	full := make([]byte, 0, len(headers)+len(body))
 	full = append(full, headers...)
 	full = append(full, body...)
-	encrypted, err := s.encrypt(full, s.masterPass)
+	encrypted, err := s.encrypt(full)
 	if err != nil {
 		s.logger.Error("encrypt file error", zap.Error(err))
 		return err
 	}
-	err = os.WriteFile(s.filename, encrypted, 0644)
+	err = afero.WriteFile(appFs, s.filename, encrypted, 0644)
 	if err != nil {
 		s.logger.Debug(err.Error())
 		return err
@@ -234,12 +237,12 @@ func (s *storage) writeFile() error {
 }
 
 func (s *storage) readFile() error {
-	encrypted, err := os.ReadFile(s.filename)
+	encrypted, err := afero.ReadFile(appFs, s.filename)
 	if err != nil {
 		s.logger.Error("read file error", zap.Error(err))
 		return err
 	}
-	b, err := s.decrypt(encrypted, s.masterPass)
+	b, err := s.decrypt(encrypted)
 	if err != nil {
 		s.logger.Error("decrypt file error", zap.Error(err))
 		return err
@@ -332,7 +335,7 @@ func (s *storage) GetCardsData() []domain.CardData {
 
 // GetData Чтение всего файла секретов
 func (s *storage) GetData() ([]byte, error) {
-	b, err := os.ReadFile(s.filename)
+	b, err := afero.ReadFile(appFs, s.filename)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +344,7 @@ func (s *storage) GetData() ([]byte, error) {
 
 // SetData Запись всего файла секретов
 func (s *storage) SetData(data []byte) error {
-	err := os.WriteFile(s.filename, data, 0644)
+	err := afero.WriteFile(appFs, s.filename, data, 0644)
 	if err != nil {
 		return err
 	}
@@ -358,9 +361,9 @@ func (s *storage) GetLocalSyncTime() time.Time {
 	return s.UpdatedAt
 }
 
-func (s *storage) encrypt(b []byte, keyString string) (encryptedBytes []byte, err error) {
+func (s *storage) encrypt(b []byte) (encryptedBytes []byte, err error) {
 
-	block, err := aes.NewCipher([]byte(keyString))
+	block, err := aes.NewCipher([]byte(s.masterPass))
 	if err != nil {
 		s.logger.Debug(err.Error())
 		return nil, err
@@ -381,9 +384,9 @@ func (s *storage) encrypt(b []byte, keyString string) (encryptedBytes []byte, er
 	return encryptedBytes, nil
 }
 
-func (s *storage) decrypt(b []byte, keyString string) (decryptedBytes []byte, err error) {
+func (s *storage) decrypt(b []byte) (decryptedBytes []byte, err error) {
 
-	block, err := aes.NewCipher([]byte(keyString))
+	block, err := aes.NewCipher([]byte(s.masterPass))
 	if err != nil {
 		s.logger.Debug(err.Error())
 		return nil, err
