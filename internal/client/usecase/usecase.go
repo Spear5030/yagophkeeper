@@ -15,6 +15,7 @@ type network interface {
 	SendData(email string, data []byte) error
 }
 
+//go:generate mockery --name "storage"
 type storage interface {
 	GetLogins() []domain.LoginPassword
 	GetTextData() []domain.TextData

@@ -1,14 +1,13 @@
 package storage
 
 import (
-	"fmt"
+	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"github.com/Spear5030/yagophkeeper/pkg/logger"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 )
-
-//var appFs = afero.NewMemMapFs()
 
 func TestNew(t *testing.T) {
 	lg, _ := logger.New(true)
@@ -28,21 +27,22 @@ func TestEncryptDecrypt(t *testing.T) {
 	require.Equal(t, testData, dec)
 }
 
-type mockCrypt struct {
-	storage
-}
-
-func (m *mockCrypt) encrypt(b []byte) []byte {
-	return b
-}
-
-func (m *mockCrypt) decrypt(b []byte) []byte {
-	return b
-}
-
-func Test_write(t *testing.T) {
+func TestWriteRead(t *testing.T) {
 	lg, _ := logger.New(true)
+	appFs = afero.NewMemMapFs()
 	fst, _ := New("test", "N1PCdw3M2B1TfJhoaY2mL736p2vCUc47", lg)
-	st := mockCrypt{*fst}
-	fmt.Println(st.masterPass)
+	fst.Email = "test@test.ts"
+	err := fst.AddLoginPassword(domain.LoginPassword{
+		Key:      1,
+		Login:    "atata",
+		Password: "dsada",
+	})
+	require.NoError(t, err)
+	err = fst.AddTextData(domain.TextData{
+		Key:  1,
+		Text: "test\ntext",
+	})
+	require.NoError(t, err)
+	fst2, _ := New("test", "N1PCdw3M2B1TfJhoaY2mL736p2vCUc47", lg)
+	require.Equal(t, fst, fst2)
 }
