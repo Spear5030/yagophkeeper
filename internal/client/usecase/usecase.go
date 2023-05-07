@@ -11,8 +11,8 @@ type network interface {
 	RegisterUser(user domain.User) (string, error)
 	LoginUser(user domain.User) (string, error)
 	CheckSync(email string) (time.Time, error)
-	GetData(email string) ([]byte, error)
-	SendData(email string, data []byte) error
+	GetData() ([]byte, error)
+	SendData(data []byte) error
 }
 
 //go:generate mockery --name "storage"
@@ -168,7 +168,7 @@ func (u *usecase) SyncData() error {
 	}
 
 	if u.serverSyncTime.After(u.localSyncTime) {
-		data, err = u.network.GetData(u.email)
+		data, err = u.network.GetData()
 		if err != nil {
 			return err
 		}
@@ -178,7 +178,7 @@ func (u *usecase) SyncData() error {
 		if err != nil {
 			return err
 		}
-		err = u.network.SendData(u.email, data)
+		err = u.network.SendData(data)
 		if err != nil {
 			return err
 		}

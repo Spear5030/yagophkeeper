@@ -27,10 +27,12 @@ type storage struct {
 	filename   string
 	masterPass string
 	logger     *zap.Logger
-	lps        []domain.LoginPassword // TODO maps for delete
-	tds        []domain.TextData
-	bds        []domain.BinaryData
-	cards      []domain.CardData
+	//lps        []domain.LoginPassword // TODO maps for delete
+	lps     map[int]domain.LoginPassword
+	lpCount int
+	tds     []domain.TextData
+	bds     []domain.BinaryData
+	cards   []domain.CardData
 	fileHeaders
 }
 
@@ -53,7 +55,7 @@ func New(filename string, masterPass string, logger *zap.Logger) (*storage, erro
 	s.filename = filename
 	s.logger = logger
 	s.masterPass = masterPass
-
+	s.lps = make(map[int]domain.LoginPassword)
 	if errors.Is(err, os.ErrNotExist) || fstat.Size() == 0 {
 		s.UpdatedAt = time.Time{} //zero time
 
@@ -105,8 +107,16 @@ func (s *storage) UpdateTime() error {
 
 // AddLoginPassword добавляет структуру логин-пароль и записывает файл
 func (s *storage) AddLoginPassword(lp domain.LoginPassword) error {
-	lp.Key = len(s.lps) + 1
-	s.lps = append(s.lps, lp)
+	key := lp.Key
+	if key == 0 {
+		s.lpCount++
+		key = s.lpCount
+	}
+	if key > s.lpCount {
+		s.lpCount = key
+	}
+	lp.Key = key
+	s.lps[key] = lp
 	return s.writeFile()
 }
 
@@ -282,7 +292,8 @@ func (s *storage) readFile() error {
 				s.logger.Debug(err.Error())
 			}
 			bufferGob.Reset()
-			s.lps = append(s.lps, *lp)
+			//s.lps = append(s.lps, *lp)
+			s.AddLoginPassword(*lp)
 		case TypeText:
 			td := &domain.TextData{}
 			bufferGob.Write(b)
@@ -318,7 +329,11 @@ func (s *storage) readFile() error {
 }
 
 func (s *storage) GetLogins() []domain.LoginPassword {
-	return s.lps
+	var lps []domain.LoginPassword
+	for _, lp := range s.lps {
+		lps = append(lps, lp)
+	}
+	return lps
 }
 
 func (s *storage) GetTextData() []domain.TextData {
