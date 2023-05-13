@@ -17,7 +17,7 @@ type App struct {
 }
 
 func New(cfg config.Config, version string, buildTime string) (*App, error) {
-	lg, err := logger.New(true)
+	lg, err := logger.New(false)
 	if err != nil {
 		return nil, err
 	}

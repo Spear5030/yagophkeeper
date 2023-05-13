@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Spear5030/yagophkeeper/internal/client/cli/tui"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -42,6 +43,7 @@ func New(logger *zap.Logger, usecase usecase) *CLI {
 	c.AddBinaryCmd()
 	c.Version()
 	rootCmd.AddCommand(addCmd)
+	rootCmd.Run = func(cmd *cobra.Command, args []string) { tui.StartTUI(usecase) }
 	return &c
 }
 

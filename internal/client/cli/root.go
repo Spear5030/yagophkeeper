@@ -15,6 +15,9 @@ examples and usage of using your application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cli *cobra.Command, args []string) { },
+	//Run: func(cmd *cobra.Command, args []string) {
+	//	tui.StartTUI()
+	//},
 }
 
 var addCmd = &cobra.Command{
