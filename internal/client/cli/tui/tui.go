@@ -3,10 +3,12 @@ package tui
 import (
 	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
+	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,7 +27,7 @@ var (
 )
 
 type usecase interface {
-	ListSecrets() []string
+	GetLoginsPasswords() []domain.LoginPassword
 	AddLoginPassword(domain.LoginPassword) error
 	AddTextData(domain.TextData) error
 	AddBinaryData(domain.BinaryData) error
@@ -44,6 +46,8 @@ type tui struct {
 
 	inputsAuth []textinput.Model
 
+	lpTable table.Model
+
 	email string
 
 	nonAuth     bool
@@ -55,6 +59,9 @@ type tui struct {
 func NewTUI(uc usecase) tui {
 	m := tui{
 		inputsAuth: make([]textinput.Model, 2),
+		lpTable: table.New(
+			table.WithHeight(7),
+		),
 	}
 	m.nonAuth = true
 	m.usecase = uc
@@ -103,7 +110,7 @@ func (m tui) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.nonAuth {
 		cmd = m.updateAuth(msg)
 	} else {
-
+		cmd = m.updateMain(msg)
 	}
 
 	// Handle character input and blinking
@@ -119,7 +126,7 @@ func (m *tui) updateAuth(msg tea.Msg) tea.Cmd {
 		// Set focus to next input
 		case "tab", "shift+tab", "enter", "up", "down":
 			s := msg.String()
-			if s == "enter" && m.focusIndex == 2 {
+			if s == "enter" && m.focusIndex == 2 { //login btn
 				user := domain.User{
 					Email:    m.inputsAuth[0].Value(),
 					Password: m.inputsAuth[1].Value(),
@@ -129,6 +136,8 @@ func (m *tui) updateAuth(msg tea.Msg) tea.Cmd {
 					m.errorString = err.Error()
 				} else {
 					m.email = user.Email
+					m.getData()
+					m.lpTable.Focus()
 					m.nonAuth = false
 				}
 
@@ -143,6 +152,7 @@ func (m *tui) updateAuth(msg tea.Msg) tea.Cmd {
 					m.errorString = err.Error()
 				} else {
 					m.email = user.Email
+					m.getData()
 					m.nonAuth = false
 				}
 
@@ -177,6 +187,20 @@ func (m *tui) updateAuth(msg tea.Msg) tea.Cmd {
 			}
 
 			return tea.Batch(cmds...)
+		}
+	}
+	return nil
+}
+
+func (m *tui) updateMain(msg tea.Msg) tea.Cmd {
+	//var err error
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "down":
+			m.lpTable.MoveDown(1)
+		case "up":
+			m.lpTable.MoveUp(1)
 		}
 	}
 	return nil
@@ -232,9 +256,23 @@ func (m tui) viewAuth() string {
 }
 
 func (m tui) viewMain() string {
-	var b strings.Builder
-	b.WriteString(m.email)
-	return b.String()
+
+	return m.lpTable.View()
+}
+
+func (m *tui) getData() {
+	lps := m.usecase.GetLoginsPasswords()
+	rows := make([]table.Row, 0, len(lps))
+	for _, lp := range lps {
+		rows = append(rows, table.Row{strconv.Itoa(lp.Key), lp.Login, lp.Password, lp.Meta})
+	}
+	m.lpTable.SetColumns([]table.Column{
+		{Title: "ID", Width: 4},
+		{Title: "Login", Width: 10},
+		{Title: "Password", Width: 10},
+		{Title: "Meta", Width: 10}})
+	m.lpTable.SetRows(rows)
+
 }
 
 func StartTUI(uc usecase) {

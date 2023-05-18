@@ -11,6 +11,7 @@ import (
 )
 
 type usecase interface {
+	GetLoginsPasswords() []domain.LoginPassword
 	ListSecrets() []string
 	AddLoginPassword(domain.LoginPassword) error
 	AddTextData(domain.TextData) error

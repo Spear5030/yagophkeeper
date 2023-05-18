@@ -56,6 +56,10 @@ func New(storage storage, network network, version string, buildTime string, log
 	return uc
 }
 
+func (u usecase) GetLoginsPasswords() []domain.LoginPassword {
+	return u.storage.GetLogins()
+}
+
 func (u *usecase) ListSecrets() []string {
 	var result []string
 	result = append(result, "Logins:")
