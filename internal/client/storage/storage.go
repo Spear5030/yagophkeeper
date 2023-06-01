@@ -376,6 +376,11 @@ func (s *storage) GetLocalSyncTime() time.Time {
 	return s.UpdatedAt
 }
 
+// GetLocalEmail возвращает email пользователя записанный в хранилище.
+func (s *storage) GetLocalEmail() string {
+	return s.Email
+}
+
 func (s *storage) encrypt(b []byte) (encryptedBytes []byte, err error) {
 
 	block, err := aes.NewCipher([]byte(s.masterPass))

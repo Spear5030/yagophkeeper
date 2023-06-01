@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"go.uber.org/zap"
@@ -30,6 +31,7 @@ type storage interface {
 	GetData() ([]byte, error)
 	SetData(data []byte) error
 	GetLocalSyncTime() time.Time
+	GetLocalEmail() string
 }
 
 type usecase struct {
@@ -128,6 +130,9 @@ func (u *usecase) LoginUser(user domain.User) error {
 	if err != nil {
 		u.logger.Debug(err.Error())
 		return err
+	}
+	if user.Email != u.storage.GetLocalEmail() {
+		return errors.New("wrong local user")
 	}
 	tSync, err := u.network.CheckSync(user.Email)
 	if err != nil {
