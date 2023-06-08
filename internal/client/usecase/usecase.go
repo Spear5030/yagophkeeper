@@ -32,6 +32,7 @@ type storage interface {
 	SetData(data []byte) error
 	GetLocalSyncTime() time.Time
 	GetLocalEmail() string
+	LoginUser(user domain.User) error
 }
 
 type usecase struct {
@@ -127,12 +128,18 @@ func (u *usecase) RegisterUser(user domain.User) error {
 
 func (u *usecase) LoginUser(user domain.User) error {
 	token, err := u.network.LoginUser(user)
+	if errors.Is(err, domain.ErrServerUnavailable) {
+		if user.Email != u.storage.GetLocalEmail() {
+			return errors.New("wrong local user")
+		}
+		err = u.storage.LoginUser(user) // локальный логин из хранилища
+		if err != nil {
+			return errors.New("wrong user or password")
+		}
+	}
 	if err != nil {
 		u.logger.Debug(err.Error())
 		return err
-	}
-	if user.Email != u.storage.GetLocalEmail() {
-		return errors.New("wrong local user")
 	}
 	tSync, err := u.network.CheckSync(user.Email)
 	if err != nil {

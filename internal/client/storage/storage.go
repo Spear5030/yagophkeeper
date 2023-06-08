@@ -381,6 +381,18 @@ func (s *storage) GetLocalEmail() string {
 	return s.Email
 }
 
+// LoginUser локальный логин пользователя. проверяет только пароль текущего файла
+func (s *storage) LoginUser(user domain.User) error {
+	hashedPass, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(hashedPass, s.HashedPass) {
+		return errors.New("wrong password")
+	}
+	return nil
+}
+
 func (s *storage) encrypt(b []byte) (encryptedBytes []byte, err error) {
 
 	block, err := aes.NewCipher([]byte(s.masterPass))

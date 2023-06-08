@@ -8,8 +8,10 @@ import (
 	"github.com/Spear5030/yagophkeeper/internal/domain"
 	"github.com/Spear5030/yagophkeeper/internal/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"log"
 	"os"
@@ -58,6 +60,9 @@ func (c *Client) LoginUser(user domain.User) (string, error) {
 	defer cancel()
 	resp, err := c.yagkclient.LoginUser(ctx, &pb.User{Email: user.Email, Password: user.Password})
 	if err != nil {
+		if status.Code(err) == codes.Unavailable {
+			return "", domain.ErrServerUnavailable
+		}
 		return "", err
 	}
 	c.token = resp.Token

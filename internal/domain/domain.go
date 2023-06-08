@@ -1,5 +1,7 @@
 package domain
 
+import "errors"
+
 type LoginPassword struct {
 	Key      int
 	Login    string
@@ -31,3 +33,5 @@ type User struct {
 	Email    string
 	Password string
 }
+
+var ErrServerUnavailable = errors.New("server unavailable") // another package?
